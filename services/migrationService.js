@@ -17,7 +17,6 @@ class MigrationService {
      */
     async ensureConnection() {
         if (!db.isConnected || mongoose.connection.readyState !== 1) {
-            console.log("MongoDB not connected, attempting to reconnect...");
             await db.connect();
         }
     }
@@ -70,7 +69,6 @@ class MigrationService {
                 throw new Error("totalItems must be a non-negative number");
             }
 
-            console.log("🔍 About to create JobStatus with data:", JSON.stringify(jobData, null, 2));
             return await JobStatus.create(jobData);
         } catch (error) {
             console.error("🔍 JobStatus creation error details:", error);
@@ -79,11 +77,8 @@ class MigrationService {
             }
             if (error.name === "ValidationError") {
                 const validationErrors = Object.values(error.errors).map((err) => err.message);
-                console.error("🔍 Validation errors:", validationErrors);
-                console.error("🔍 Job data that failed:", JSON.stringify(jobData, null, 2));
                 throw new Error(`Validation failed: ${validationErrors.join(", ")}`);
             }
-            console.error("🔍 Full error object:", JSON.stringify(error, null, 2));
             throw new Error(`Failed to create job status: ${error.message}`);
         }
     }
@@ -99,19 +94,15 @@ class MigrationService {
                 throw new Error(`Job not found for correlationId: ${correlationId}`);
             }
 
-            console.log(`🔍 Attempting to update JobStatus ${correlationId} with:`, JSON.stringify(updates, null, 2));
-
             // Try the simple update first (which might work for some fields)
             try {
                 const result = await JobStatus.findOneAndUpdate({ correlationId }, { $set: { ...updates, updatedAt: new Date() } }, { new: true });
-                console.log(`✅ Successfully updated JobStatus ${correlationId}`);
+
                 return result;
             } catch (validationError) {
-                console.warn(`⚠️  Validation error on JobStatus update for ${correlationId}, attempting workaround:`, validationError.message);
-
                 // If validation fails, fall back to a minimal working approach
                 // Just log the progress and return the current job
-                console.log(`📝 JobStatus update failed but continuing processing for ${correlationId}`);
+
                 console.log(`� Progress update would have been:`, JSON.stringify(updates, null, 2));
 
                 // Return the current job so processing can continue
@@ -176,21 +167,14 @@ class MigrationService {
         const { batchSize = config.BATCH_SIZE || 100, filters = { status: "pending" }, dryRun = false, priority = 0 } = options;
 
         try {
-            console.log("🔍 Starting migration with options:", JSON.stringify(options, null, 2));
-
             // Ensure MongoDB connection is active
             await this.ensureConnection();
-            console.log("✅ MongoDB connection ensured");
 
             await this.initialize();
-            console.log("✅ Migration service initialized");
 
             // Get total count for progress tracking
-            console.log("🔍 Counting documents with filters:", JSON.stringify(filters, null, 2));
             const totalCount = await SomeModel.countDocuments(filters);
-            console.log("📊 Total documents found:", totalCount);
             if (totalCount === 0) {
-                console.log("📭 No documents found for migration");
                 return {
                     success: true,
                     message: "No documents found matching the criteria",
@@ -199,22 +183,18 @@ class MigrationService {
                 };
             }
 
-            console.log("🆔 Generating migration UUID...");
             const migrationId = uuidv4();
-            console.log("✅ Migration ID generated:", migrationId);
 
             const batches = [];
             let batchCount = 0;
             let processedCount = 0;
 
             // Create migration job status
-            console.log("📝 Creating migration job status...");
             await this.createJobStatus(migrationId, totalCount, {
                 jobType: "migration",
                 message: `Starting migration of ${totalCount} documents`,
                 metadata: { batchSize, filters, dryRun },
             });
-            console.log("✅ Migration job status created successfully");
 
             if (dryRun) {
                 const estimatedBatches = Math.ceil(totalCount / batchSize);
@@ -367,8 +347,6 @@ class MigrationService {
                     failedBatches: failedBatches.length,
                     totalBatches: totalBatches,
                 });
-
-                console.log(`📊 Migration ${migrationId} status updated to: ${migrationStatus}`);
             }
 
             return migrationStatus;
@@ -389,8 +367,6 @@ class MigrationService {
                 status: "processing",
             });
 
-            console.log(`🔍 Checking ${stuckMigrations.length} potentially stuck migration jobs...`);
-
             for (const migration of stuckMigrations) {
                 await this.checkAndUpdateMigrationStatus(migration.correlationId);
             }
@@ -401,8 +377,6 @@ class MigrationService {
                 status: "pending",
                 createdAt: { $lt: new Date(Date.now() - 5 * 60 * 1000) }, // older than 5 minutes
             });
-
-            console.log(`🔍 Found ${stuckBatches.length} potentially stuck batch jobs...`);
 
             for (const batch of stuckBatches) {
                 // Check if this batch was actually processed by looking at the parent migration
@@ -415,7 +389,6 @@ class MigrationService {
                         endTime: new Date(),
                         progress: 100,
                     });
-                    console.log(`✅ Updated stuck batch ${batch.correlationId} to completed`);
                 }
             }
         } catch (error) {
@@ -430,8 +403,6 @@ class MigrationService {
 
             // Get all jobs to analyze the structure
             const allJobs = await JobStatus.find({});
-
-            console.log(`🔍 Analyzing ${allJobs.length} total jobs...`);
 
             // Separate jobs by correlationId pattern
             const uuidJobs = allJobs.filter((job) => {

@@ -11,6 +11,8 @@ class ConsumerService {
         this.consumers = new Map();
         this.workers = new Map();
         this.isStarted = false;
+        this.workerCounter = 0; // Track total workers created
+        this.activeWorkers = 0; // Track currently active workers
     }
 
     async initialize() {
@@ -32,17 +34,13 @@ class ConsumerService {
     }
 
     setupEventListeners() {
-        this.rabbitmq.on("messageProcessed", (data) => {
-            console.log(`📊 Message processed: ${data.correlationId} in ${data.processingTime}ms`);
-        });
+        this.rabbitmq.on("messageProcessed", (data) => {});
 
         this.rabbitmq.on("messageError", (data) => {
             console.error(`❌ Message error: ${data.correlationId} - ${data.error.message}`);
         });
 
-        this.rabbitmq.on("messageRetried", (data) => {
-            console.log(`🔄 Message retried: ${data.correlationId} (${data.attempt}/${data.maxRetries})`);
-        });
+        this.rabbitmq.on("messageRetried", (data) => {});
 
         this.rabbitmq.on("messageSentToDeadLetter", (data) => {
             console.warn(`💀 Message sent to DLQ: ${data.correlationId}`);
@@ -56,30 +54,48 @@ class ConsumerService {
 
     async processInWorker(batch, correlationId) {
         return new Promise((resolve, reject) => {
+            // Increment worker counter
+            this.workerCounter++;
+            this.activeWorkers++;
+
+            const workerId = `worker-${this.workerCounter}`;
+            console.log(`🚀 Creating Worker #${this.workerCounter} (${workerId}) for correlationId: ${correlationId}`);
+            console.log(`📊 Worker Statistics: ${this.workerCounter} total workers created, ${this.activeWorkers} currently active`);
+
             const workerPath = path.resolve("./workers/bulkUpdateWorker.js");
             const worker = new Worker(workerPath, {
                 workerData: {
                     batch: batch,
                     correlationId: correlationId,
+                    workerId: workerId,
+                    workerNumber: this.workerCounter,
                 },
             });
 
-            // Store worker reference
-            this.workers.set(correlationId, worker);
+            // Store worker reference with cleanup flag
+            this.workers.set(correlationId, { worker, cleaned: false });
+
+            const cleanupWorker = () => {
+                const workerInfo = this.workers.get(correlationId);
+                if (workerInfo && !workerInfo.cleaned) {
+                    this.workers.delete(correlationId);
+                    this.activeWorkers--;
+                    workerInfo.cleaned = true;
+                }
+            };
 
             const timeout = setTimeout(() => {
+                cleanupWorker();
                 worker.terminate();
-                this.workers.delete(correlationId);
+                console.log(`⏰ Worker ${workerId} terminated due to timeout`);
                 reject(new Error("Worker timeout exceeded"));
             }, 300000); // 5 minute timeout
 
             worker.on("message", async (result) => {
                 clearTimeout(timeout);
-                this.workers.delete(correlationId);
+                cleanupWorker();
 
                 if (result.success) {
-                    console.log(`✅ Worker processed ${result.processed} items (${correlationId})`);
-
                     // Update job status to completed
                     try {
                         // Try simple update first
@@ -113,7 +129,7 @@ class ConsumerService {
 
                     resolve(result);
                 } else {
-                    console.error(`❌ Worker error (${correlationId}):`, result.error);
+                    console.error(`❌ Worker #${this.workerCounter} (${workerId}) failed:`, result.error);
 
                     // Update job status to failed
                     try {
@@ -139,19 +155,20 @@ class ConsumerService {
 
             worker.on("error", (error) => {
                 clearTimeout(timeout);
-                this.workers.delete(correlationId);
-                console.error(`💥 Worker error (${correlationId}):`, error);
+                cleanupWorker();
+                console.error(`💥 Worker #${this.workerCounter} (${workerId}) error:`, error);
                 reject(error);
             });
 
             worker.on("exit", (code) => {
                 clearTimeout(timeout);
-                this.workers.delete(correlationId);
+                cleanupWorker();
 
                 if (code !== 0) {
                     const error = new Error(`Worker exited with code ${code}`);
-                    console.error(`🚪 Worker exit (${correlationId}):`, error.message);
-                    reject(error);
+                    console.error(`🚪 Worker #${this.workerCounter} (${workerId}) exit:`, error.message);
+                } else {
+                    console.log(`🔚 Worker #${this.workerCounter} (${workerId}) exited normally`);
                 }
             });
         });
@@ -164,8 +181,6 @@ class ConsumerService {
                 async (batch, rawMsg) => {
                     const correlationId = rawMsg.properties.correlationId;
                     const batchSize = rawMsg.properties.headers?.batchSize || batch.length;
-
-                    console.log(`🔄 Processing batch with correlationId: ${correlationId} (size: ${batchSize})`);
 
                     // Update job status to processing
                     try {
@@ -193,7 +208,6 @@ class ConsumerService {
             );
 
             this.consumers.set("processing", consumerInfo);
-            console.log("🎯 Processing consumer started");
         } catch (error) {
             console.error("❌ Failed to start processing consumer:", error.message);
             throw error;
@@ -222,7 +236,6 @@ class ConsumerService {
             );
 
             this.consumers.set("priority", consumerInfo);
-            console.log("⚡ Priority consumer started");
         } catch (error) {
             console.error("❌ Failed to start priority consumer:", error.message);
             throw error;
@@ -252,7 +265,6 @@ class ConsumerService {
             );
 
             this.consumers.set("deadletter", consumerInfo);
-            console.log("💀 Dead letter consumer started");
         } catch (error) {
             console.error("❌ Failed to start dead letter consumer:", error.message);
             throw error;
@@ -272,7 +284,6 @@ class ConsumerService {
             await Promise.all([this.startProcessingConsumer(), this.startPriorityConsumer(), this.startDeadLetterConsumer()]);
 
             this.isStarted = true;
-            console.log("🚀 All consumers started successfully");
         } catch (error) {
             console.error("❌ Failed to start consumers:", error.message);
             throw error;
@@ -296,9 +307,9 @@ class ConsumerService {
     async stopAllConsumers() {
         try {
             // Terminate all active workers
-            for (const [correlationId, worker] of this.workers) {
+            for (const [correlationId, workerInfo] of this.workers) {
                 console.log(`🛑 Terminating worker: ${correlationId}`);
-                await worker.terminate();
+                await workerInfo.worker.terminate();
             }
             this.workers.clear();
 
@@ -345,6 +356,53 @@ class ConsumerService {
                 timestamp: new Date(),
             };
         }
+    }
+
+    getWorkerStatistics() {
+        // Ensure activeWorkers is never negative and matches reality
+        const actualActiveWorkers = this.workers.size;
+        if (this.activeWorkers !== actualActiveWorkers) {
+            console.warn(`⚠️ Worker count mismatch detected. Correcting: ${this.activeWorkers} -> ${actualActiveWorkers}`);
+            this.activeWorkers = actualActiveWorkers;
+        }
+
+        return {
+            totalWorkersCreated: this.workerCounter,
+            activeWorkers: Math.max(0, this.activeWorkers),
+            completedWorkers: Math.max(0, this.workerCounter - this.activeWorkers),
+            timestamp: new Date(),
+        };
+    }
+
+    resetWorkerCounter() {
+        const stats = this.getWorkerStatistics();
+        this.workerCounter = 0;
+        // Fix negative active workers by setting to actual active count
+        this.activeWorkers = Math.max(0, this.workers.size);
+        console.log(`🔄 Worker counter reset. Previous stats:`, stats);
+        return stats;
+    }
+
+    // Add method to fix any existing counter mismatches
+    fixWorkerCounters() {
+        const actualActiveWorkers = this.workers.size;
+        const previousActiveWorkers = this.activeWorkers;
+
+        // Correct the active workers to match actual active workers
+        this.activeWorkers = actualActiveWorkers;
+
+        // If activeWorkers was negative, we need to adjust workerCounter
+        if (previousActiveWorkers < 0) {
+            this.workerCounter = Math.max(0, this.workerCounter + Math.abs(previousActiveWorkers));
+        }
+
+        return {
+            corrected: previousActiveWorkers !== actualActiveWorkers,
+            previousActiveWorkers,
+            currentActiveWorkers: this.activeWorkers,
+            actualActiveWorkers,
+            timestamp: new Date(),
+        };
     }
 }
 

@@ -233,6 +233,45 @@ class QueueController {
             });
         }
     }
+
+    async getWorkerStatistics(req, res) {
+        try {
+            const stats = consumerService.getWorkerStatistics();
+
+            res.status(200).json({
+                success: true,
+                message: "Worker statistics retrieved successfully",
+                timestamp: new Date(),
+                workers: stats,
+            });
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date(),
+            });
+        }
+    }
+
+    async resetWorkerCounter(req, res) {
+        try {
+            const previousStats = consumerService.resetWorkerCounter();
+
+            res.status(200).json({
+                success: true,
+                message: "Worker counter reset successfully",
+                timestamp: new Date(),
+                previousStats: previousStats,
+                currentStats: consumerService.getWorkerStatistics(),
+            });
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date(),
+            });
+        }
+    }
 }
 
 module.exports = new QueueController();

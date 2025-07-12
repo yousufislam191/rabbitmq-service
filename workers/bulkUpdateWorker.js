@@ -3,15 +3,10 @@ const mongoose = require("mongoose");
 const SomeModel = require("../models/someModel");
 const config = require("../config");
 
-async function bulkUpdate(batch, correlationId) {
+async function bulkUpdate(batch, correlationId, workerId, workerNumber) {
     try {
-        console.log(`🔧 BulkUpdate starting for ${batch.length} items`);
-        console.log(`🔧 First item sample:`, JSON.stringify(batch[0], null, 2));
-
         // Create bulk operations to update document status
         const bulkOps = batch.map((item) => {
-            console.log(`🔧 Processing item with _id: ${item._id}, current status: ${item.status}`);
-
             // Determine the new status based on current status
             let newStatus = "success";
             let additionalFields = {};
@@ -21,12 +16,10 @@ async function bulkUpdate(batch, correlationId) {
                 newStatus = "success";
                 additionalFields.retryCount = (item.retryCount || 0) + 1;
                 additionalFields.lastRetryAt = new Date();
-                console.log(`🔄 Retrying failed item: ${item._id} (retry count: ${additionalFields.retryCount})`);
             } else if (item.status === "processing") {
                 // For processing items, complete the processing
                 newStatus = "success";
                 additionalFields.processingDuration = new Date() - (item.processingStartedAt || item.updatedAt);
-                console.log(`✅ Completing processing for item: ${item._id}`);
             }
 
             return {
@@ -46,33 +39,36 @@ async function bulkUpdate(batch, correlationId) {
             };
         });
 
-        console.log(`🔧 Bulk operations created: ${bulkOps.length}`);
-        console.log(`🔧 Sample bulk operation:`, JSON.stringify(bulkOps[0], null, 2));
-
         const result = await SomeModel.bulkWrite(bulkOps);
 
-        console.log(`🔧 Bulk write result:`, JSON.stringify(result, null, 2));
-        console.log(`✅ Worker processed ${batch.length} items (${correlationId || "unknown"})`);
+        console.log(`✅ ${workerId} (#${workerNumber}) processed ${batch.length} items`);
 
         parentPort.postMessage({
             success: true,
             processed: batch.length,
             modifiedCount: result.modifiedCount,
             matchedCount: result.matchedCount,
+            workerId: workerId,
+            workerNumber: workerNumber,
         });
     } catch (err) {
-        console.error(`❌ Worker processing error:`, err.message);
-        console.error(`❌ Error stack:`, err.stack);
-        parentPort.postMessage({ success: false, error: err.message });
+        console.error(`❌ ${workerId} (#${workerNumber}) error:`, err.message);
+        parentPort.postMessage({
+            success: false,
+            error: err.message,
+            workerId: workerId,
+            workerNumber: workerNumber,
+        });
     }
 }
 
 async function start() {
-    try {
-        await mongoose.connect(config.MONGODB_URI);
-        console.log(`🔧 Worker started with data:`, JSON.stringify(workerData, null, 2));
+    const { batch, correlationId, workerId, workerNumber } = workerData;
 
-        const { batch, correlationId } = workerData;
+    try {
+        console.log(`🚀 ${workerId} (#${workerNumber}) started`);
+
+        await mongoose.connect(config.MONGODB_URI);
 
         if (!batch || !Array.isArray(batch)) {
             throw new Error(`Invalid batch data received: ${typeof batch}`);
@@ -82,14 +78,12 @@ async function start() {
             throw new Error("Empty batch received");
         }
 
-        console.log(`🔧 Processing ${batch.length} documents with correlationId: ${correlationId}`);
-
-        await bulkUpdate(batch, correlationId);
+        await bulkUpdate(batch, correlationId, workerId, workerNumber);
 
         mongoose.connection.close();
     } catch (error) {
-        console.error(`❌ Worker start error:`, error.message);
-        parentPort.postMessage({ success: false, error: error.message });
+        console.error(`❌ ${workerId} (#${workerNumber}) error:`, error.message);
+        parentPort.postMessage({ success: false, error: error.message, workerId, workerNumber });
         mongoose.connection.close();
     }
 }

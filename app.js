@@ -47,17 +47,13 @@ async function startApplication() {
         StartupLogger.displayBanner();
         await db.connect();
 
-        // Start consumers after database is connected
-        StartupLogger.displayConsumersInit();
+        // Start consumers and scheduler
         await startConsumers();
-
-        // Start schedulers
-        StartupLogger.displaySchedulersInit();
         startScheduler();
 
         // Start the server
         app.listen(config.PORT, () => {
-            StartupLogger.displayAPIEndpoints(config.PORT);
+            StartupLogger.displayCompactSummary(config.PORT);
         });
     } catch (error) {
         StartupLogger.displayStartupError(error);

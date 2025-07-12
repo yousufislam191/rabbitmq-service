@@ -165,14 +165,13 @@ class StartupLogger {
     }
 
     /**
-     * Display compact startup summary (alternative to full endpoints list)
+     * Display compact startup summary (cleaner output)
      * @param {number} port - The port number
      */
     static displayCompactSummary(port) {
         console.log(`🌐 Server running on http://localhost:${port}`);
-        console.log(`📊 API Categories: Health | Database | Migration | Queue | Seeding`);
-        console.log(`📖 Full documentation: http://localhost:${port}/seed/docs`);
-        console.log("✅ Application started successfully!");
+        console.log(`� Documentation: http://localhost:${port}/seed/docs`);
+        console.log("✅ Application ready!");
     }
 }
 

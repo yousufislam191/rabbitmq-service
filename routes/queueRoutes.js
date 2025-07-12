@@ -21,4 +21,8 @@ router.post("/consumers/restart", queueController.restartConsumers);
 // Testing
 router.post("/test/publish", queueController.publishTestMessage);
 
+// Worker management and statistics
+router.get("/workers/stats", queueController.getWorkerStatistics);
+router.post("/workers/reset-counter", queueController.resetWorkerCounter);
+
 module.exports = router;

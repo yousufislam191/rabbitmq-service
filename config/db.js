@@ -9,7 +9,6 @@ class Database {
     async connect() {
         try {
             if (this.isConnected) {
-                console.log("MongoDB is already connected");
                 return;
             }
 
@@ -25,8 +24,6 @@ class Database {
             this.isConnected = true;
 
             console.log("✅ MongoDB connected successfully");
-            console.log(`📍 Connected to: ${mongoose.connection.host}:${mongoose.connection.port}`);
-            console.log(`📊 Database: ${mongoose.connection.name}`);
 
             // Handle connection events
             mongoose.connection.on("error", (err) => {

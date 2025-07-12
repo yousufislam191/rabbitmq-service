@@ -2,7 +2,7 @@
     "info": {
         "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
         "name": "RabbitMQ Batch Update API - Production Ready v3.0",
-        "description": "Complete API collection for RabbitMQ Batch Update project - Production Ready Version with 31+ endpoints\n\n🎯 **Latest Updates (v3.0):**\n- ✅ Enhanced Sequential Scheduler: processes pending → processing → failed (with retry)\n- ✅ Advanced retry mechanisms for failed documents\n- ✅ Complete processing for stuck documents\n- ✅ MongoDB validation error handling with graceful fallbacks\n- ✅ 31+ endpoints fully tested and verified\n- ✅ Production-ready with robust error handling\n\n📊 **Performance:**\n- 8,000+ docs/sec processing speed\n- 31+ verified endpoints\n- Sequential processing priority\n- Graceful error handling\n- Zero downtime operations\n- Automated retry mechanisms\n\n🔄 **Scheduler Features:**\n- Automatic processing every minute\n- Step 1: Process pending documents\n- Step 2: Complete processing documents\n- Step 3: Retry failed documents\n- Comprehensive logging and monitoring",
+        "description": "Complete API collection for RabbitMQ Batch Update project - Production Ready Version with 33+ endpoints\n\n🎯 **Latest Updates (v3.0):**\n- ✅ Enhanced Sequential Scheduler: processes pending → processing → failed (with retry)\n- ✅ Advanced retry mechanisms for failed documents\n- ✅ Complete processing for stuck documents\n- ✅ MongoDB validation error handling with graceful fallbacks\n- ✅ 33+ endpoints fully tested and verified (including worker statistics)\n- ✅ Production-ready with robust error handling\n\n📊 **Performance:**\n- 8,000+ docs/sec processing speed\n- 33+ verified endpoints (including worker monitoring)\n- Sequential processing priority\n- Graceful error handling\n- Zero downtime operations\n- Automated retry mechanisms\n\n🔄 **Scheduler Features:**\n- Automatic processing every minute\n- Step 1: Process pending documents\n- Step 2: Complete processing documents\n- Step 3: Retry failed documents\n- Comprehensive logging and monitoring",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
         "_exporter_id": "12345678",
         "version": {
@@ -651,6 +651,44 @@
                             ]
                         },
                         "description": "Publish a test message to the queue for testing consumer functionality"
+                    }
+                },
+                {
+                    "name": "Get Worker Statistics",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/queue/workers/stats",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "queue",
+                                "workers",
+                                "stats"
+                            ]
+                        },
+                        "description": "Get comprehensive worker statistics including total workers created, active workers, and completed workers"
+                    }
+                },
+                {
+                    "name": "Reset Worker Counter",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/queue/workers/reset-counter",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "queue",
+                                "workers",
+                                "reset-counter"
+                            ]
+                        },
+                        "description": "Reset the worker counter to zero and return previous statistics. Useful for starting fresh monitoring cycles"
                     }
                 }
             ]

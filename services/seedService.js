@@ -163,13 +163,9 @@ class SeedService {
 
             const { clearExisting = false, batchSize = 1000 } = options;
 
-            console.log(`Starting to seed SomeModel with ${count} documents...`);
-
             // Clear existing data if requested
             if (clearExisting) {
-                console.log("Clearing existing SomeModel data...");
                 await SomeModel.deleteMany({});
-                console.log("Existing data cleared.");
             }
 
             const startTime = Date.now();
@@ -180,17 +176,14 @@ class SeedService {
                 const batchCount = Math.min(batchSize, count - i);
                 const batchData = this.generateSomeModelData(batchCount);
 
-                console.log(`Inserting batch ${Math.floor(i / batchSize) + 1}: ${batchCount} documents...`);
                 const result = await SomeModel.insertMany(batchData, { ordered: false });
                 totalInserted += result.length;
-
-                console.log(`Batch inserted: ${result.length} documents`);
             }
 
             const endTime = Date.now();
             const duration = (endTime - startTime) / 1000;
 
-            console.log(`Seeding completed! Inserted ${totalInserted} documents in ${duration} seconds`);
+            console.log(`✅ Seeded ${totalInserted} documents in ${duration}s`);
 
             return {
                 success: true,
@@ -218,12 +211,8 @@ class SeedService {
 
             const { clearExisting = false, batchSize = 500 } = options;
 
-            console.log(`Starting to seed JobStatus with ${count} documents...`);
-
             if (clearExisting) {
-                console.log("Clearing existing JobStatus data...");
                 await JobStatus.deleteMany({});
-                console.log("Existing JobStatus data cleared.");
             }
 
             const startTime = Date.now();
@@ -263,7 +252,6 @@ class SeedService {
         try {
             const { someModelCount = 1000, jobStatusCount = 100, clearExisting = false, batchSize = 1000 } = options;
 
-            console.log("Starting comprehensive data seeding...");
             const startTime = Date.now();
             const results = [];
 

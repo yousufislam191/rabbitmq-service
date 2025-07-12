@@ -14,10 +14,10 @@ class SeedController {
             const { count = 1000, clearExisting = false, batchSize = 1000 } = req.body;
 
             // Validate input
-            if (count <= 0 || count > 100000) {
+            if (count <= 0 || count > 10000000) {
                 return res.status(400).json({
                     success: false,
-                    message: "Count must be between 1 and 100,000",
+                    message: "Count must be between 1 and 10,000,000",
                     timestamp: new Date().toISOString(),
                 });
             }

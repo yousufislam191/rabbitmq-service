@@ -9,9 +9,7 @@ async function processInWorker(batch) {
 // Main function to start consumers - now uses the new service
 async function startConsumers() {
     try {
-        console.log("🚀 Starting RabbitMQ consumers using new service architecture...");
         await consumerService.startAllConsumers();
-        console.log("✅ All consumers started successfully");
 
         // Return consumer service for potential direct usage
         return consumerService;

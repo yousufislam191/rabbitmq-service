@@ -16,7 +16,7 @@ This project demonstrates a **production-ready** message queue architecture desi
 
 -   **Sequential Scheduler Enhancement**: Implemented priority processing `pending → processing → failed` with automated retry mechanisms
 -   **Advanced Migration Endpoints**: Added specialized endpoints for retry-failed, complete-processing, process-all, and fix-stuck-jobs
--   **Comprehensive API Testing**: All 31+ endpoints thoroughly tested and verified working in production
+-   **Comprehensive API Testing**: All 33+ endpoints thoroughly tested and verified working in production
 -   **Enhanced Documentation**: Updated Postman collection to v3.0 with detailed endpoint descriptions and examples
 -   **Project Cleanup**: Removed unnecessary files and optimized project structure for production deployment
 -   **Production Ready**: Robust error handling, graceful fallbacks, and zero-downtime operations verified
@@ -402,19 +402,21 @@ curl http://localhost:3000/migrate/status/{migrationId}
 
 ### **Queue Management** 📦
 
-| Method   | Endpoint                   | Description                    | Status |
-| -------- | -------------------------- | ------------------------------ | ------ |
-| `GET`    | `/queue/stats`             | Comprehensive queue statistics | ✅     |
-| `GET`    | `/queue/health`            | RabbitMQ connectivity check    | ✅     |
-| `GET`    | `/queue/consumer-status`   | Get consumer status details    | ✅     |
-| `POST`   | `/queue/test-publish`      | Test message publishing        | ✅     |
-| `POST`   | `/queue/consumers/start`   | Start consumer processes       | ✅     |
-| `POST`   | `/queue/consumers/stop`    | Stop consumer processes        | ✅     |
-| `POST`   | `/queue/consumers/restart` | Restart all consumers          | ✅     |
-| `DELETE` | `/queue/purge/:queueName`  | Purge specific queue           | ✅     |
-| `POST`   | `/queue/retry-dlq`         | Retry dead letter messages     | ✅     |
-| `POST`   | `/queue/test-batch`        | Send test batch to queue       | ✅     |
-| `GET`    | `/queue/monitoring`        | Real-time queue monitoring     | ✅     |
+| Method   | Endpoint                       | Description                    | Status |
+| -------- | ------------------------------ | ------------------------------ | ------ |
+| `GET`    | `/queue/stats`                 | Comprehensive queue statistics | ✅     |
+| `GET`    | `/queue/health`                | RabbitMQ connectivity check    | ✅     |
+| `GET`    | `/queue/consumer-status`       | Get consumer status details    | ✅     |
+| `POST`   | `/queue/test-publish`          | Test message publishing        | ✅     |
+| `POST`   | `/queue/consumers/start`       | Start consumer processes       | ✅     |
+| `POST`   | `/queue/consumers/stop`        | Stop consumer processes        | ✅     |
+| `POST`   | `/queue/consumers/restart`     | Restart all consumers          | ✅     |
+| `DELETE` | `/queue/purge/:queueName`      | Purge specific queue           | ✅     |
+| `POST`   | `/queue/retry-dlq`             | Retry dead letter messages     | ✅     |
+| `POST`   | `/queue/test-batch`            | Send test batch to queue       | ✅     |
+| `GET`    | `/queue/monitoring`            | Real-time queue monitoring     | ✅     |
+| `GET`    | `/queue/workers/stats`         | Get worker statistics          | ✅     |
+| `POST`   | `/queue/workers/reset-counter` | Reset worker counter           | ✅     |
 
 ### **Data Seeding & Testing** 🌱
 
@@ -439,7 +441,7 @@ curl http://localhost:3000/migrate/status/{migrationId}
 | **Core Processing**  | ✅ Working  | Document migration fully operational      |
 | **Error Handling**   | ✅ Graceful | Fallback mechanisms for validation errors |
 | **Scheduler**        | ✅ Active   | Automated processing every minute         |
-| **API Endpoints**    | ✅ All Live | 31+ endpoints tested and verified         |
+| **API Endpoints**    | ✅ All Live | 33+ endpoints tested and verified         |
 | **Production Ready** | ✅ Yes      | Robust error handling implemented         |
 
 ### **Tested Performance Metrics**
@@ -769,7 +771,7 @@ This system is ideal for:
 | **Core Migration** | 🟢 Operational | Documents processing pending→success     |
 | **Error Handling** | 🟢 Robust      | Graceful fallbacks for validation errors |
 | **Scheduler**      | 🟢 Active      | Automated processing every minute        |
-| **API Endpoints**  | 🟢 All Live    | 31+ endpoints tested and verified        |
+| **API Endpoints**  | 🟢 All Live    | 33+ endpoints tested and verified        |
 | **Documentation**  | 🟢 Complete    | README and Postman collections updated   |
 
 ### **🚀 Ready for Production Use**

@@ -90,7 +90,6 @@ class RabbitMQService extends EventEmitter {
     async assertTopicExchange(exchange, options = { durable: true }) {
         try {
             await this.channel.assertExchange(exchange, "topic", options);
-            console.log(`📡 Topic exchange '${exchange}' asserted`);
         } catch (error) {
             console.error(`❌ Failed to assert topic exchange '${exchange}':`, error.message);
             throw error;
@@ -100,7 +99,6 @@ class RabbitMQService extends EventEmitter {
     async assertDirectExchange(exchange, options = { durable: true }) {
         try {
             await this.channel.assertExchange(exchange, "direct", options);
-            console.log(`📡 Direct exchange '${exchange}' asserted`);
         } catch (error) {
             console.error(`❌ Failed to assert direct exchange '${exchange}':`, error.message);
             throw error;
@@ -110,7 +108,6 @@ class RabbitMQService extends EventEmitter {
     async assertQueue(queue, options = { durable: true }) {
         try {
             const result = await this.channel.assertQueue(queue, options);
-            console.log(`📋 Queue '${queue}' asserted`);
             return result;
         } catch (error) {
             console.error(`❌ Failed to assert queue '${queue}':`, error.message);
@@ -121,7 +118,6 @@ class RabbitMQService extends EventEmitter {
     async bindQueue(queue, exchange, pattern) {
         try {
             await this.channel.bindQueue(queue, exchange, pattern);
-            console.log(`🔗 Queue '${queue}' bound to exchange '${exchange}' with pattern '${pattern}'`);
         } catch (error) {
             console.error(`❌ Failed to bind queue '${queue}' to exchange '${exchange}':`, error.message);
             throw error;
@@ -157,7 +153,6 @@ class RabbitMQService extends EventEmitter {
                 console.warn("⚠️ Message may not have been published (channel buffer full)");
             }
 
-            console.log(`📤 Message published to exchange '${exchange}' with routing key '${routingKey}'`);
             this.emit("messagePublished", { exchange, routingKey, correlationId });
 
             return result;
@@ -215,7 +210,6 @@ class RabbitMQService extends EventEmitter {
                 }
             );
 
-            console.log(`🎯 Consumer started for queue '${queue}' (tag: ${consumerInfo.consumerTag})`);
             this.emit("consumerStarted", { queue, consumerTag: consumerInfo.consumerTag });
 
             return consumerInfo;
