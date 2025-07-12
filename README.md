@@ -34,15 +34,73 @@ This project demonstrates a **production-ready** message queue architecture desi
 
 ## 📋 **Table of Contents**
 
--   [Architecture](#-architecture)
--   [Installation](#-installation)
--   [Configuration](#-configuration)
--   [Usage](#-usage)
--   [API Documentation](#-api-documentation)
--   [Performance Benchmarks](#-performance-benchmarks)
--   [Development](#-development)
--   [Deployment](#-deployment)
--   [Contributing](#-contributing)
+-   [🎯 Project Overview](#-project-overview)
+    -   [✅ Recent Updates (July 2025)](#-recent-updates-july-2025)
+    -   [Key Features](#key-features)
+-   [🏗️ Architecture](#️-architecture)
+    -   [System Components](#system-components)
+    -   [Message Flow](#message-flow)
+    -   [Directory Structure](#directory-structure)
+-   [🚀 Installation](#-installation)
+    -   [Prerequisites](#prerequisites)
+    -   [Quick Start](#quick-start)
+-   [⚙️ Configuration](#️-configuration)
+    -   [Environment Variables](#environment-variables)
+    -   [Docker Compose Services](#docker-compose-services)
+-   [📖 Usage](#-usage)
+    -   [1. Data Seeding (Testing)](#1-data-seeding-testing)
+    -   [2. Manual Migration](#2-manual-migration)
+    -   [3. Automated Scheduling](#3-automated-scheduling)
+    -   [4. Monitoring & Health Checks](#4-monitoring--health-checks)
+-   [📡 API Documentation](#-api-documentation)
+    -   [Health & Monitoring 🏥](#health--monitoring-)
+    -   [Database Operations 🗄️](#database-operations-️)
+    -   [Migration Management 🔄](#migration-management-)
+    -   [Queue Management 📦](#queue-management-)
+    -   [Data Seeding & Testing 🌱](#data-seeding--testing-)
+-   [📊 Performance Benchmarks](#-performance-benchmarks)
+    -   [System Status ✅](#system-status-)
+    -   [Tested Performance Metrics](#tested-performance-metrics)
+    -   [Load Testing Results](#load-testing-results)
+    -   [Recent Improvements 🎯](#recent-improvements-)
+-   [🔧 Development](#-development)
+    -   [Development Mode](#development-mode)
+    -   [Testing & API Documentation 🧪](#testing--api-documentation-)
+    -   [Debugging](#debugging)
+    -   [Code Structure Best Practices](#code-structure-best-practices)
+-   [🔧 Troubleshooting & Recent Fixes](#-troubleshooting--recent-fixes)
+    -   [Recently Resolved Issues ✅](#recently-resolved-issues-)
+    -   [Common Solutions 🛠️](#common-solutions-️)
+    -   [System Health Verification 🏥](#system-health-verification-)
+-   [🚀 Deployment](#-deployment)
+    -   [Production Deployment](#production-deployment)
+    -   [Scaling Considerations](#scaling-considerations)
+-   [🎯 Project Goals & Achievements](#-project-goals--achievements)
+    -   [Primary Objectives](#primary-objectives)
+    -   [What This Project Demonstrates](#what-this-project-demonstrates)
+    -   [Use Cases](#use-cases)
+-   [🎉 Current Status: Production Ready](#-current-status-production-ready)
+    -   [✅ System Health Summary](#-system-health-summary)
+    -   [🚀 Ready for Production Use](#-ready-for-production-use)
+    -   [📊 Quick Start Verification](#-quick-start-verification)
+-   [🤝 Contributing](#-contributing)
+    -   [Development Guidelines](#development-guidelines)
+-   [📄 License](#-license)
+-   [🔗 Links](#-links)
+-   [🙏 Acknowledgments](#-acknowledgments)
+-   [🔍 What Really Happens: Single Document Journey](#-what-really-happens-single-document-journey)
+    -   [Step-by-Step Document Processing](#step-by-step-document-processing)
+    -   [🎯 Real Example from Our System](#-real-example-from-our-system)
+    -   [🔄 What Makes This Powerful](#-what-makes-this-powerful)
+    -   [💡 Use Case Examples](#-use-case-examples)
+-   [Advanced Migration Scenarios](#advanced-migration-scenarios)
+    -   [Status-Specific Migrations](#status-specific-migrations)
+    -   [Status Handling Logic](#status-handling-logic)
+-   [🔄 Sequential Scheduler Enhancement](#-sequential-scheduler-enhancement)
+    -   [Priority Processing Logic](#priority-processing-logic)
+    -   [Scheduler Features](#scheduler-features)
+    -   [Processing Flow](#processing-flow)
+    -   [Benefits](#benefits)
 
 ## 🏗️ **Architecture**
 
@@ -66,6 +124,8 @@ This project demonstrates a **production-ready** message queue architecture desi
 │ • Job Queuing   │    │ • Dead Letter Q  │    │ • Status Updates│
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
+
+[⬆️ Back to top](#-table-of-contents)
 
 ### **Message Flow**
 
@@ -123,6 +183,8 @@ sequential-batch-migration-system/
 └── app.js             # Application entry point
 ```
 
+[⬆️ Back to top](#-table-of-contents)
+
 ## 🚀 **Installation**
 
 ### **Prerequisites**
@@ -179,6 +241,8 @@ sequential-batch-migration-system/
     curl http://localhost:3000/health
     ```
 
+[⬆️ Back to top](#-table-of-contents)
+
 ## ⚙️ **Configuration**
 
 ### **Environment Variables**
@@ -232,6 +296,8 @@ services:
         volumes:
             - mongodb_data:/data/db
 ```
+
+[⬆️ Back to top](#-table-of-contents)
 
 ## 📖 **Usage**
 
@@ -288,6 +354,8 @@ curl http://localhost:3000/queue/stats
 # Migration status
 curl http://localhost:3000/migrate/status/{migrationId}
 ```
+
+[⬆️ Back to top](#-table-of-contents)
 
 ## 📡 **API Documentation**
 
@@ -360,6 +428,8 @@ curl http://localhost:3000/migrate/status/{migrationId}
 | `GET`    | `/seed/docs`        | Interactive API documentation     | ✅     |
 | `POST`   | `/seed/bulk/:count` | Seed specific number of documents | ✅     |
 
+[⬆️ Back to top](#-table-of-contents)
+
 ## 📊 **Performance Benchmarks**
 
 ### **System Status** ✅
@@ -422,6 +492,8 @@ Test: 50,000 Documents Migration
 ├── Average Batch Time: 2.3 seconds
 └── Zero Downtime: ✅ System remained responsive
 ```
+
+[⬆️ Back to top](#-table-of-contents)
 
 ## 🔧 **Development**
 
@@ -509,6 +581,8 @@ The application provides comprehensive logging:
 -   **Models**: Data schemas and database interactions
 -   **Workers**: Heavy processing and data transformations
 -   **Utils**: Shared utilities and helper functions
+
+[⬆️ Back to top](#-table-of-contents)
 
 ## 🔧 **Troubleshooting & Recent Fixes**
 
@@ -616,6 +690,8 @@ curl -X POST http://localhost:3000/migrate \
 
 **Expected Results**: All endpoints should return success responses with no critical errors.
 
+[⬆️ Back to top](#-table-of-contents)
+
 ## 🚀 **Deployment**
 
 ### **Production Deployment**
@@ -650,6 +726,8 @@ curl -X POST http://localhost:3000/migrate \
 -   **Database Scaling**: Consider MongoDB replica sets for high availability
 -   **Memory Management**: Monitor Node.js heap usage under high load
 
+[⬆️ Back to top](#-table-of-contents)
+
 ## 🎯 **Project Goals & Achievements**
 
 ### **Primary Objectives**
@@ -679,6 +757,8 @@ This system is ideal for:
 -   **ETL Pipelines**: Extract, Transform, Load operations with message queuing
 -   **Event-Driven Architecture**: Microservices communication via message queues
 -   **Background Jobs**: Asynchronous processing of time-intensive operations
+
+[⬆️ Back to top](#-table-of-contents)
 
 ## 🎉 **Current Status: Production Ready**
 
@@ -721,6 +801,8 @@ curl -X POST http://localhost:3000/migrate
 curl http://localhost:3000/queue/stats
 ```
 
+[⬆️ Back to top](#-table-of-contents)
+
 ## 🤝 **Contributing**
 
 We welcome contributions! Please see our contributing guidelines:
@@ -738,15 +820,21 @@ We welcome contributions! Please see our contributing guidelines:
 -   Update documentation for API changes
 -   Ensure Docker compatibility
 
+[⬆️ Back to top](#-table-of-contents)
+
 ## 📄 **License**
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+[⬆️ Back to top](#-table-of-contents)
 
 ## 🔗 **Links**
 
 -   **Repository**: [https://github.com/yousufislam191/sequential-batch-migration-system](https://github.com/yousufislam191/sequential-batch-migration-system)
 -   **Issues**: [https://github.com/yousufislam191/sequential-batch-migration-system/issues](https://github.com/yousufislam191/sequential-batch-migration-system/issues)
 -   **Documentation**: [./docs/](./docs/)
+
+[⬆️ Back to top](#-table-of-contents)
 
 ## 🙏 **Acknowledgments**
 
@@ -760,6 +848,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ⭐ **Star this repository if you find it helpful!**
 
 Built with ❤️ for the developer community to demonstrate enterprise-grade batch processing systems.
+
+[⬆️ Back to top](#-table-of-contents)
 
 ## 🔍 **What Really Happens: Single Document Journey**
 
@@ -976,6 +1066,8 @@ Based on your actual testing, here's what happened to **50,000 documents**:
 
 This is exactly what happened during your **50,000 document test** - each document followed this same journey through the system! 🚀
 
+[⬆️ Back to top](#-table-of-contents)
+
 ## Advanced Migration Scenarios
 
 The system provides specialized endpoints for handling different document statuses:
@@ -1053,6 +1145,8 @@ The worker processes documents differently based on their current status:
     - Increments `retryCount` field
     - Adds `lastRetryAt` timestamp
 
+[⬆️ Back to top](#-table-of-contents)
+
 ## 🔄 **Sequential Scheduler Enhancement**
 
 ### **Priority Processing Logic**
@@ -1096,3 +1190,5 @@ async function runSequentialProcessing() {
 -   **⚡ Optimal Performance**: Prioritizes new work while cleaning up edge cases
 -   **🛡️ Fault Recovery**: Automatically handles stuck and failed states
 -   **📊 Complete Visibility**: Full lifecycle tracking from pending to success
+
+[⬆️ Back to top](#-table-of-contents)
