@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: rabbitmq-server
+    ports:
+      - "5672:5672"     # AMQP port
+      - "15672:15672"   # Management UI port
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb-server
+    ports:
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: rabbitmq_batch_db
+    volumes:
+      - mongodb_data:/data/db
+      - ./database/scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+      - ./database/scripts/seed-data.js:/docker-entrypoint-initdb.d/seed-data.js:ro
+      - ./database/scripts/migrations.js:/docker-entrypoint-initdb.d/migrations.js:ro
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # app:
+  #   build: .
+  #   container_name: rabbitmq-batch-app
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #     mongodb:
+  #       condition: service_healthy
+  #   environment:
+  #     - NODE_ENV=production
+  #     - MONGODB_URI=mongodb://admin:admin123@mongodb:27017/rabbitmq_batch_db?authSource=admin
+  #     - RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - .:/app
+  #     - /app/node_modules
+  #   networks:
+  #     - app-network
+  #   restart: unless-stopped
+
+volumes:
+  rabbitmq_data:
+    driver: local
+  mongodb_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

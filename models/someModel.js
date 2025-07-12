@@ -3,7 +3,8 @@ const mongoose = require("mongoose");
 const SomeSchema = new mongoose.Schema(
     {
         name: String,
-        status: String,
+        email: String,
+        status: { type: String, enum: ["pending", "processing", "success", "failed"], default: "pending" },
         updateFields: Object,
     },
     { timestamps: true }

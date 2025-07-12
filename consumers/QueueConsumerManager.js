@@ -1,50 +1,27 @@
-const RabbitMQService = require("../services/rabbitmqService");
-const { Worker } = require("worker_threads");
-const config = require("../config");
+const consumerService = require("../services/consumerService");
 
+// Legacy function for backward compatibility
 async function processInWorker(batch) {
-    return new Promise((resolve, reject) => {
-        const worker = new Worker("./workers/bulkUpdateWorker.js", { workerData: batch });
-
-        worker.on("message", (result) => {
-            if (result.success) {
-                console.log(`Processed ${result.processed} items`);
-                resolve();
-            } else {
-                console.error("Worker error:", result.error);
-                reject(new Error(result.error));
-            }
-        });
-
-        worker.on("error", reject);
-        worker.on("exit", (code) => {
-            if (code !== 0) reject(new Error(`Worker exited with code ${code}`));
-        });
-    });
+    const correlationId = `legacy-${Date.now()}`;
+    return consumerService.processInWorker(batch, correlationId);
 }
 
+// Main function to start consumers - now uses the new service
 async function startConsumers() {
-    const rabbit = new RabbitMQService(config.RABBITMQ_URL);
-    await rabbit.connect();
+    try {
+        console.log("🚀 Starting RabbitMQ consumers using new service architecture...");
+        await consumerService.startAllConsumers();
+        console.log("✅ All consumers started successfully");
 
-    await rabbit.assertTopicExchange("app.topic.exchange");
-    await rabbit.assertQueue("app.processing.queue", {
-        durable: true,
-        deadLetterExchange: "app.deadletter.exchange",
-    });
-    await rabbit.bindQueue("app.processing.queue", "app.topic.exchange", "process.*");
-
-    await rabbit.assertTopicExchange("app.deadletter.exchange");
-    await rabbit.assertQueue("app.deadletter.queue", { durable: true });
-    await rabbit.bindQueue("app.deadletter.queue", "app.deadletter.exchange", "#");
-
-    // Add consumers dynamically per queue
-    rabbit.consume("app.processing.queue", async (batch) => await processInWorker(batch), {
-        retry: true,
-        maxRetries: 5,
-        retryDelayMs: 10000,
-        deadLetterExchange: "app.deadletter.exchange",
-    });
+        // Return consumer service for potential direct usage
+        return consumerService;
+    } catch (error) {
+        console.error("❌ Failed to start consumers:", error.message);
+        throw error;
+    }
 }
 
+// Export both for backward compatibility and new usage
 module.exports = startConsumers;
+module.exports.consumerService = consumerService;
+module.exports.processInWorker = processInWorker;
