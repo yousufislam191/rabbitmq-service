@@ -3,7 +3,15 @@
   "version": "1.0.0",
   "main": "app.js",
   "description": "Enterprise-grade sequential batch processing system with RabbitMQ, MongoDB, and intelligent priority processing (pending → processing → failed)",
-  "keywords": ["rabbitmq", "mongodb", "batch-processing", "sequential", "migration", "enterprise", "nodejs"],
+  "keywords": [
+    "rabbitmq",
+    "mongodb",
+    "batch-processing",
+    "sequential",
+    "migration",
+    "enterprise",
+    "nodejs"
+  ],
   "author": "yousufislam191",
   "license": "MIT",
   "repository": {
