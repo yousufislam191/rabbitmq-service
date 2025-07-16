@@ -325,6 +325,36 @@ class RabbitMQService extends EventEmitter {
         }
     }
 
+    async getAllQueues() {
+        try {
+            if (!this.channel) {
+                throw new Error("Channel not available");
+            }
+
+            // Since amqplib doesn't provide a direct way to list all queues,
+            // we'll use a practical approach: try to check known queue patterns
+            // and return only the ones that exist
+            const knownQueues = ["app.processing.queue", "app.priority.queue", "app.deadletter.queue", "app.retry.queue"];
+
+            const existingQueues = [];
+
+            for (const queue of knownQueues) {
+                try {
+                    await this.channel.checkQueue(queue);
+                    existingQueues.push(queue);
+                } catch (error) {
+                    // Queue doesn't exist, skip it
+                    console.warn(`Queue ${queue} not found, skipping`);
+                }
+            }
+
+            return existingQueues;
+        } catch (error) {
+            console.error("❌ Failed to get all queues:", error.message);
+            throw error;
+        }
+    }
+
     getConnectionStatus() {
         return {
             isConnected: this.isConnected,

@@ -1,14 +1,11 @@
 const express = require("express");
 const migrationRoutes = require("./routes/migrationRoutes");
-const healthRoutes = require("./routes/healthRoutes");
-const dbRoutes = require("./routes/dbRoutes");
 const queueRoutes = require("./routes/queueRoutes");
 const seedRoutes = require("./routes/seedRoutes");
 const startConsumers = require("./consumers/QueueConsumerManager");
 const startScheduler = require("./schedulers/migrationScheduler");
 const config = require("./config");
 const db = require("./config/db");
-const StartupLogger = require("./utils/startupLogger");
 
 const app = express();
 
@@ -34,8 +31,6 @@ app.use((err, req, res, next) => {
 });
 
 // Routes
-app.use("/health", healthRoutes);
-app.use("/db", dbRoutes);
 app.use("/migrate", migrationRoutes);
 app.use("/queue", queueRoutes);
 app.use("/seed", seedRoutes);
@@ -44,31 +39,31 @@ app.use("/seed", seedRoutes);
 async function startApplication() {
     try {
         // Initialize database connection
-        StartupLogger.displayBanner();
         await db.connect();
 
         // Start consumers and scheduler
         await startConsumers();
-        startScheduler();
+        // startScheduler();
 
         // Start the server
         app.listen(config.PORT, () => {
-            StartupLogger.displayCompactSummary(config.PORT);
+            console.log(`🌐 Server running on http://localhost:${config.PORT}`);
         });
     } catch (error) {
-        StartupLogger.displayStartupError(error);
+        console.error("❌ Failed to start application:", error.message);
         process.exit(1);
     }
 }
 
 // Handle uncaught exceptions
 process.on("uncaughtException", (error) => {
-    StartupLogger.displayUncaughtException(error);
+    console.error("🔧 The application will exit. Please check your code for unhandled errors. ERROR: ", error);
     process.exit(1);
 });
 
 process.on("unhandledRejection", (reason, promise) => {
-    StartupLogger.displayUnhandledRejection(reason, promise);
+    console.error("💥 Unhandled Rejection at:", promise, "reason:", reason);
+    console.error("🔧 The application will exit. Please ensure all promises are properly handled.");
     process.exit(1);
 });
 

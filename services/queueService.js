@@ -107,7 +107,8 @@ class QueueService {
         await this.ensureInitialized();
 
         try {
-            const queues = ["app.processing.queue", "app.priority.queue", "app.deadletter.queue", "app.retry.queue"];
+            // Dynamically fetch all queues instead of using hardcoded list
+            const queues = await this.rabbitmq.getAllQueues();
 
             const stats = {};
 
@@ -151,7 +152,8 @@ class QueueService {
     async purgeAllQueues() {
         await this.ensureInitialized();
 
-        const queues = ["app.processing.queue", "app.priority.queue", "app.deadletter.queue", "app.retry.queue"];
+        // Dynamically fetch all queues instead of using hardcoded list
+        const queues = await this.rabbitmq.getAllQueues();
 
         const results = {};
 

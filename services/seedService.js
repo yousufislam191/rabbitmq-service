@@ -286,45 +286,6 @@ class SeedService {
     }
 
     /**
-     * Get collection statistics
-     */
-    static async getCollectionStats() {
-        try {
-            // Ensure MongoDB connection is active
-            await this.ensureConnection();
-
-            const someModelCount = await SomeModel.countDocuments();
-            const someModelByStatus = await SomeModel.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]);
-
-            const jobStatusCount = await JobStatus.countDocuments();
-            const jobStatusByStatus = await JobStatus.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]);
-
-            const jobCounterCount = await JobCounter.countDocuments();
-
-            return {
-                success: true,
-                stats: {
-                    SomeModel: {
-                        total: someModelCount,
-                        byStatus: someModelByStatus,
-                    },
-                    JobStatus: {
-                        total: jobStatusCount,
-                        byStatus: jobStatusByStatus,
-                    },
-                    JobCounter: {
-                        total: jobCounterCount,
-                    },
-                },
-                timestamp: new Date().toISOString(),
-            };
-        } catch (error) {
-            console.error("Error getting collection stats:", error);
-            throw new Error(`Failed to get collection stats: ${error.message}`);
-        }
-    }
-
-    /**
      * Clear all test data
      */
     static async clearAllData() {
