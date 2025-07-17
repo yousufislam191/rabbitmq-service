@@ -1,0 +1,743 @@
+{
+    "info": {
+        "_postman_id": "f8e7d9c1-2c3e-4b6a-8a5f-1d2e3f4g5h6i",
+        "name": "Sequential Batch Migration System API",
+        "description": "Complete API collection for the Sequential Batch Migration System with RabbitMQ and MongoDB integration. This system provides bulk data migration capabilities with archive functionality.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "_exporter_id": "12345678"
+    },
+    "item": [
+        {
+            "name": "🌟 System Health & Overview",
+            "item": [
+                {
+                    "name": "Health Check",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/health",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "health"
+                            ]
+                        },
+                        "description": "Check if the server is running and healthy"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Queue Health",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/queue/health",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "queue",
+                                "health"
+                            ]
+                        },
+                        "description": "Check RabbitMQ connection and queue health"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Consumer Health",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/consumers/health",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "consumers",
+                                "health"
+                            ]
+                        },
+                        "description": "Check consumer worker thread health"
+                    },
+                    "response": []
+                }
+            ],
+            "description": "System health and status endpoints"
+        },
+        {
+            "name": "🗄️ Data Management",
+            "item": [
+                {
+                    "name": "Insert Batch Data",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"collection\": \"someModel\",\n  \"totalCount\": 100,\n  \"batchSize\": 20,\n  \"clearExisting\": false\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/seed/insert-batch",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "seed",
+                                "insert-batch"
+                            ]
+                        },
+                        "description": "Insert dummy data into the database in batches. Useful for testing and seeding data."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Fetch and Publish to Queue",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"collection\": \"someModel\",\n  \"batchSize\": 50,\n  \"limit\": 200,\n  \"priority\": 0,\n  \"queueType\": \"processing\",\n  \"filter\": {}\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/seed/fetch-and-publish",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "seed",
+                                "fetch-and-publish"
+                            ]
+                        },
+                        "description": "Fetch data from database and publish to RabbitMQ queues in batches. Supports different queue types: processing, priority, deadletter, archive."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Clear All Data",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"confirmation\": \"DELETE_ALL_DATA\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/seed/clear-all",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "seed",
+                                "clear-all"
+                            ]
+                        },
+                        "description": "⚠️ **DANGER**: Clear all data from the database. Requires explicit confirmation."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Data seeding and management operations"
+        },
+        {
+            "name": "🏗️ Archive Flow System",
+            "item": [
+                {
+                    "name": "Test Complete Archive Flow",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"insertCount\": 100,\n  \"batchSize\": 25,\n  \"clearExisting\": true,\n  \"archiveQueueType\": \"archive\",\n  \"priority\": 0,\n  \"testMode\": true\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/seed/test-archive-flow",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "seed",
+                                "test-archive-flow"
+                            ]
+                        },
+                        "description": "🚀 **Main Archive Feature**: Test the complete archive flow:\n1. Insert dummy data into SomeModel\n2. Fetch and publish to archive queue\n3. Archive workers process and move data to SomeModelArchive\n\nThis demonstrates the full bulk migration capability."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Publish to Archive Queue",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"collection\": \"someModel\",\n  \"batchSize\": 50,\n  \"limit\": null,\n  \"priority\": 0,\n  \"queueType\": \"archive\",\n  \"filter\": {\n    \"status\": \"success\"\n  }\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/seed/fetch-and-publish",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "seed",
+                                "fetch-and-publish"
+                            ]
+                        },
+                        "description": "Fetch specific data and publish to archive queue for migration to SomeModelArchive collection."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Archive flow and bulk migration operations"
+        },
+        {
+            "name": "📊 Queue Management",
+            "item": [
+                {
+                    "name": "Queue Statistics",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/queue/stats",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "queue",
+                                "stats"
+                            ]
+                        },
+                        "description": "Get detailed statistics for all queues including message counts, consumer counts, and queue states."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Connection Details",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/queue/connection/details",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "queue",
+                                "connection",
+                                "details"
+                            ]
+                        },
+                        "description": "Get RabbitMQ connection details and configuration."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Publish Test Message",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"queueType\": \"processing\",\n  \"data\": {\n    \"test\": true,\n    \"timestamp\": \"{{$timestamp}}\",\n    \"message\": \"Test message for queue validation\"\n  },\n  \"priority\": 0\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/queue/test/publish",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "queue",
+                                "test",
+                                "publish"
+                            ]
+                        },
+                        "description": "Publish a test message to validate queue functionality."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Purge Specific Queue",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/queue/purge/app.processing.queue",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "queue",
+                                "purge",
+                                "app.processing.queue"
+                            ]
+                        },
+                        "description": "⚠️ Purge all messages from a specific queue. Available queues: app.processing.queue, app.priority.queue, app.deadletter.queue, app.archive.queue"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Purge All Queues",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/queue/purge-all",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "queue",
+                                "purge-all"
+                            ]
+                        },
+                        "description": "⚠️ **DANGER**: Purge all messages from all queues."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Cleanup All Queues",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/queue/cleanup-all",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "queue",
+                                "cleanup-all"
+                            ]
+                        },
+                        "description": "⚠️ **DANGER**: Delete all queues and cleanup resources."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Retry Dead Letter Messages",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"maxRetries\": 10\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/queue/retry-dlq",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "queue",
+                                "retry-dlq"
+                            ]
+                        },
+                        "description": "Retry processing messages from the dead letter queue."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Queue monitoring and management operations"
+        },
+        {
+            "name": "👷 Consumer Management",
+            "item": [
+                {
+                    "name": "Consumer Status",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/consumers/status",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "consumers",
+                                "status"
+                            ]
+                        },
+                        "description": "Get status of all consumer workers including active workers, processing stats, and health."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Worker Statistics",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/consumers/workers/stats",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "consumers",
+                                "workers",
+                                "stats"
+                            ]
+                        },
+                        "description": "Get detailed worker thread statistics and performance metrics."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Detailed Worker Stats",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/consumers/workers/detailed-stats",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "consumers",
+                                "workers",
+                                "detailed-stats"
+                            ]
+                        },
+                        "description": "Get comprehensive worker statistics including processing times, error rates, and throughput."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Available Queues",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/consumers/available",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "consumers",
+                                "available"
+                            ]
+                        },
+                        "description": "List all available queues that can have consumers."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Start All Consumers",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/consumers/start",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "consumers",
+                                "start"
+                            ]
+                        },
+                        "description": "Start all consumer workers for all queues."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Stop All Consumers",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/consumers/stop",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "consumers",
+                                "stop"
+                            ]
+                        },
+                        "description": "⚠️ Stop all consumer workers. This will halt message processing."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Restart All Consumers",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/consumers/restart",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "consumers",
+                                "restart"
+                            ]
+                        },
+                        "description": "Restart all consumer workers. Useful for applying configuration changes."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Specific Queue Consumer Status",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/consumers/app.archive.queue/status",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "consumers",
+                                "app.archive.queue",
+                                "status"
+                            ]
+                        },
+                        "description": "Get status of a specific queue consumer. Change 'app.archive.queue' to other queue names: app.processing.queue, app.priority.queue, app.deadletter.queue"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Start Specific Consumer",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/consumers/app.archive.queue/start",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "consumers",
+                                "app.archive.queue",
+                                "start"
+                            ]
+                        },
+                        "description": "Start consumer for a specific queue."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Stop Specific Consumer",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/consumers/app.archive.queue/stop",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "consumers",
+                                "app.archive.queue",
+                                "stop"
+                            ]
+                        },
+                        "description": "⚠️ Stop consumer for a specific queue."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Restart Specific Consumer",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/consumers/app.archive.queue/restart",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "consumers",
+                                "app.archive.queue",
+                                "restart"
+                            ]
+                        },
+                        "description": "Restart consumer for a specific queue."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Reset Worker Counter",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/consumers/workers/reset-counter",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "consumers",
+                                "workers",
+                                "reset-counter"
+                            ]
+                        },
+                        "description": "Reset worker statistics and counters."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Consumer worker management and monitoring"
+        },
+        {
+            "name": "🧪 Testing & Examples",
+            "item": [
+                {
+                    "name": "Quick Test - Small Dataset",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"insertCount\": 10,\n  \"batchSize\": 3,\n  \"clearExisting\": true,\n  \"archiveQueueType\": \"archive\",\n  \"priority\": 0,\n  \"testMode\": true\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/seed/test-archive-flow",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "seed",
+                                "test-archive-flow"
+                            ]
+                        },
+                        "description": "Quick test with a small dataset (10 records) to verify the archive flow is working."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Medium Test - Production Simulation",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"insertCount\": 1000,\n  \"batchSize\": 100,\n  \"clearExisting\": true,\n  \"archiveQueueType\": \"archive\",\n  \"priority\": 0,\n  \"testMode\": false\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/seed/test-archive-flow",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "seed",
+                                "test-archive-flow"
+                            ]
+                        },
+                        "description": "Medium scale test with 1000 records to simulate production workload."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Insert Sample Data",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"collection\": \"someModel\",\n  \"totalCount\": 50,\n  \"batchSize\": 10,\n  \"clearExisting\": false\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/seed/insert-batch",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "seed",
+                                "insert-batch"
+                            ]
+                        },
+                        "description": "Insert sample data for manual testing."
+                    },
+                    "response": []
+                }
+            ],
+            "description": "Pre-configured test scenarios and examples"
+        }
+    ],
+    "event": [
+        {
+            "listen": "prerequest",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    ""
+                ]
+            }
+        },
+        {
+            "listen": "test",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    ""
+                ]
+            }
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:3000",
+            "type": "string"
+        }
+    ]
+}

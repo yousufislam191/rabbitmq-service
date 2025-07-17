@@ -145,32 +145,28 @@ sequential-batch-migration-system/
 │   ├── index.js         # Main config with environment variables
 │   └── db.js           # MongoDB connection setup
 ├── 📁 controllers/      # HTTP request handlers
-│   ├── migrationController.js
 │   ├── healthController.js
 │   ├── queueController.js
+│   ├── consumerController.js
 │   └── seedController.js
 ├── 📁 routes/          # API route definitions
-│   ├── migrationRoutes.js
 │   ├── healthRoutes.js
 │   ├── queueRoutes.js
+│   ├── consumerRoutes.js
 │   └── seedRoutes.js
 ├── 📁 services/        # Business logic layer
 │   ├── rabbitmqService.js
 │   ├── queueService.js
 │   ├── consumerService.js
+│   ├── ConsumerWorkerManager.js
 │   ├── databaseService.js
 │   └── seedService.js
 ├── 📁 models/          # MongoDB schemas
 │   ├── someModel.js
 │   ├── jobStatus.js
 │   └── jobCounter.js
-├── 📁 jobs/            # Background job definitions
-│   └── migrateDataJob.js
-├── 📁 schedulers/      # Cron job schedulers
-│   └── migrationScheduler.js
-├── 📁 consumers/       # RabbitMQ message consumers
-│   └── QueueConsumerManager.js
-├── 📁 workers/         # Data processing workers
+├── 📁 workers/         # Worker threads and processing workers
+│   ├── consumers/      # Consumer worker threads (ProcessingConsumerWorker.js, etc.)
 │   └── bulkUpdateWorker.js
 ├── 📁 utils/           # Utility functions
 │   └── startupLogger.js

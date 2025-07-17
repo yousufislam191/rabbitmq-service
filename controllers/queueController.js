@@ -1,277 +1,83 @@
 const queueService = require("../services/queueService");
-const consumerService = require("../services/consumerService");
+const ErrorHandler = require("../utils/errorHandler");
+const { ResponseUtils } = require("../utils/serviceUtils");
+const { ValidationError } = require("../utils/errors");
 
 class QueueController {
-    async getQueueStats(req, res) {
-        try {
-            const stats = await queueService.getQueueStats();
+    getQueueStats = ErrorHandler.wrapAsync(async (req, res) => {
+        const { queueName } = req.query;
+        const stats = await queueService.getQueueStats(queueName);
 
-            res.status(200).json({
-                success: true,
-                timestamp: new Date(),
-                ...stats,
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                error: error.message,
-                timestamp: new Date(),
-            });
+        // The service now returns structured responses, so we can pass them directly
+        const statusCode = stats.success ? 200 : stats.error?.type === "QueueNotFoundError" ? 404 : 400;
+        res.status(statusCode).json(stats);
+    });
+
+    getQueueHealth = ErrorHandler.wrapAsync(async (req, res) => {
+        const health = await queueService.healthCheck();
+        const statusCode = health.status === "healthy" ? 200 : 503;
+        res.status(statusCode).json(health);
+    });
+
+    purgeQueue = ErrorHandler.wrapAsync(async (req, res) => {
+        const { queueName } = req.params;
+        const result = await queueService.purgeQueue(queueName);
+        res.status(200).json(result);
+    });
+
+    purgeAllQueues = ErrorHandler.wrapAsync(async (req, res) => {
+        const result = await queueService.purgeAllQueues();
+        res.status(200).json(result);
+    });
+
+    retryDeadLetterMessages = ErrorHandler.wrapAsync(async (req, res) => {
+        const { limit } = req.query;
+        const retryLimit = limit ? parseInt(limit) : 10;
+        const result = await queueService.retryDeadLetterMessages(retryLimit);
+        res.status(200).json(result);
+    });
+
+    publishTestMessage = ErrorHandler.wrapAsync(async (req, res) => {
+        const { queueName, message, priority = 0, delay = 0 } = req.body;
+
+        if (!queueName || !message) {
+            const { response, statusCode } = ErrorHandler.createResponse(new ValidationError("Queue name and message are required"));
+            return res.status(statusCode).json(response);
         }
-    }
 
-    async getQueueHealth(req, res) {
-        try {
-            const health = await queueService.healthCheck();
-            const statusCode = health.status === "healthy" ? 200 : 503;
+        const testBatch = Array.isArray(message) ? message : [message];
+        const result = await queueService.publishBatch(testBatch, {
+            priority: parseInt(priority),
+            delay: parseInt(delay),
+            routingKey: "test.message",
+            correlationId: `test-${Date.now()}`,
+        });
 
-            res.status(statusCode).json({
-                success: health.status === "healthy",
-                timestamp: new Date(),
-                ...health,
-            });
-        } catch (error) {
-            res.status(503).json({
-                success: false,
-                error: error.message,
-                timestamp: new Date(),
-            });
+        res.status(200).json(result);
+    });
+
+    getConnectionDetails = ErrorHandler.wrapAsync(async (req, res) => {
+        const connectionDetails = queueService.rabbitmq.getConnectionDetails();
+        res.status(200).json(ResponseUtils.success({ connectionDetails }));
+    });
+
+    /**
+     * Cleanup all RabbitMQ queues - WARNING: This will delete all data
+     * This is a destructive operation that should be used with caution
+     */
+    cleanupQueues = ErrorHandler.wrapAsync(async (req, res) => {
+        const { confirm } = req.body;
+
+        // Require explicit confirmation to prevent accidental deletion
+        if (confirm !== "DELETE_ALL_QUEUES") {
+            return res
+                .status(400)
+                .json(ResponseUtils.error('Cleanup requires explicit confirmation. Send { "confirm": "DELETE_ALL_QUEUES" } in request body.', "CONFIRMATION_REQUIRED"));
         }
-    }
 
-    async purgeQueue(req, res) {
-        try {
-            const { queueName } = req.params;
-
-            if (!queueName) {
-                return res.status(400).json({
-                    success: false,
-                    error: "Queue name is required",
-                    timestamp: new Date(),
-                });
-            }
-
-            const result = await queueService.purgeQueue(queueName);
-
-            res.status(200).json({
-                success: true,
-                timestamp: new Date(),
-                ...result,
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                error: error.message,
-                timestamp: new Date(),
-            });
-        }
-    }
-
-    async purgeAllQueues(req, res) {
-        try {
-            const result = await queueService.purgeAllQueues();
-
-            res.status(200).json({
-                success: true,
-                timestamp: new Date(),
-                ...result,
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                error: error.message,
-                timestamp: new Date(),
-            });
-        }
-    }
-
-    async retryDeadLetterMessages(req, res) {
-        try {
-            const { limit } = req.query;
-            const retryLimit = limit ? parseInt(limit) : 10;
-
-            const result = await queueService.retryDeadLetterMessages(retryLimit);
-
-            res.status(200).json({
-                success: true,
-                timestamp: new Date(),
-                ...result,
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                error: error.message,
-                timestamp: new Date(),
-            });
-        }
-    }
-
-    async getConsumerStatus(req, res) {
-        try {
-            const status = consumerService.getConsumerStatus();
-
-            res.status(200).json({
-                success: true,
-                timestamp: new Date(),
-                consumers: status,
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                error: error.message,
-                timestamp: new Date(),
-            });
-        }
-    }
-
-    async getConsumerHealth(req, res) {
-        try {
-            const health = await consumerService.getConsumerHealth();
-            const statusCode = health.status === "healthy" ? 200 : 503;
-
-            res.status(statusCode).json({
-                success: health.status === "healthy",
-                timestamp: new Date(),
-                ...health,
-            });
-        } catch (error) {
-            res.status(503).json({
-                success: false,
-                error: error.message,
-                timestamp: new Date(),
-            });
-        }
-    }
-
-    async startConsumers(req, res) {
-        try {
-            await consumerService.startAllConsumers();
-
-            res.status(200).json({
-                success: true,
-                message: "All consumers started successfully",
-                timestamp: new Date(),
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                error: error.message,
-                timestamp: new Date(),
-            });
-        }
-    }
-
-    async stopConsumers(req, res) {
-        try {
-            await consumerService.stopAllConsumers();
-
-            res.status(200).json({
-                success: true,
-                message: "All consumers stopped successfully",
-                timestamp: new Date(),
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                error: error.message,
-                timestamp: new Date(),
-            });
-        }
-    }
-
-    async restartConsumers(req, res) {
-        try {
-            await consumerService.restartConsumers();
-
-            res.status(200).json({
-                success: true,
-                message: "All consumers restarted successfully",
-                timestamp: new Date(),
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                error: error.message,
-                timestamp: new Date(),
-            });
-        }
-    }
-
-    async publishTestMessage(req, res) {
-        try {
-            const { batchSize = 5, priority = 0, correlationId = `test-${Date.now()}` } = req.body;
-
-            // Create test batch
-            const testBatch = [];
-            for (let i = 0; i < batchSize; i++) {
-                testBatch.push({
-                    _id: `test-${correlationId}-${i}`,
-                    updateFields: {
-                        status: "test",
-                        updatedAt: new Date(),
-                        testData: `Test message ${i + 1}`,
-                    },
-                });
-            }
-
-            const result = await queueService.publishBatch(testBatch, {
-                correlationId,
-                priority,
-            });
-
-            res.status(200).json({
-                success: true,
-                message: "Test message published successfully",
-                timestamp: new Date(),
-                ...result,
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                error: error.message,
-                timestamp: new Date(),
-            });
-        }
-    }
-
-    async getWorkerStatistics(req, res) {
-        try {
-            const stats = consumerService.getWorkerStatistics();
-
-            res.status(200).json({
-                success: true,
-                message: "Worker statistics retrieved successfully",
-                timestamp: new Date(),
-                workers: stats,
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                error: error.message,
-                timestamp: new Date(),
-            });
-        }
-    }
-
-    async resetWorkerCounter(req, res) {
-        try {
-            const previousStats = consumerService.resetWorkerCounter();
-
-            res.status(200).json({
-                success: true,
-                message: "Worker counter reset successfully",
-                timestamp: new Date(),
-                previousStats: previousStats,
-                currentStats: consumerService.getWorkerStatistics(),
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                error: error.message,
-                timestamp: new Date(),
-            });
-        }
-    }
+        const result = await queueService.cleanupAllQueues();
+        res.status(200).json(result);
+    });
 }
 
 module.exports = new QueueController();

@@ -1,6 +1,7 @@
 const SomeModel = require("../models/someModel");
 const JobStatus = require("../models/jobStatus");
 const JobCounter = require("../models/jobCounter");
+const QueueService = require("./queueService");
 const mongoose = require("mongoose");
 const db = require("../config/db");
 
@@ -154,163 +155,252 @@ class SeedService {
     }
 
     /**
-     * Seed SomeModel collection with dummy data
+     * Clear all data from all collections
      */
-    static async seedSomeModel(count = 1000, options = {}) {
-        try {
-            // Ensure MongoDB connection is active
-            await this.ensureConnection();
+    static async clearAllData() {
+        await this.ensureConnection();
 
-            const { clearExisting = false, batchSize = 1000 } = options;
+        try {
+            console.log("🗑️ Starting to clear all data from database...");
+            const startTime = Date.now();
+
+            // Get all collection names
+            const collections = await mongoose.connection.db.listCollections().toArray();
+            let clearedCollections = 0;
+            let totalDocumentsDeleted = 0;
+
+            for (const collection of collections) {
+                const collectionName = collection.name;
+
+                // Skip system collections
+                if (collectionName.startsWith("system.")) {
+                    continue;
+                }
+
+                try {
+                    // Get document count before deletion
+                    const docCount = await mongoose.connection.db.collection(collectionName).countDocuments();
+
+                    // Clear the collection
+                    const result = await mongoose.connection.db.collection(collectionName).deleteMany({});
+
+                    totalDocumentsDeleted += result.deletedCount;
+                    clearedCollections++;
+
+                    console.log(`🗑️ Cleared collection '${collectionName}': ${result.deletedCount} documents deleted`);
+                } catch (collectionError) {
+                    console.warn(`⚠️ Failed to clear collection '${collectionName}':`, collectionError.message);
+                }
+            }
+
+            const endTime = Date.now();
+            const duration = (endTime - startTime) / 1000;
+
+            console.log(`✅ Successfully cleared ${clearedCollections} collections (${totalDocumentsDeleted} documents) in ${duration}s`);
+
+            return {
+                success: true,
+                message: `Successfully cleared all data from ${clearedCollections} collections`,
+                stats: {
+                    collectionsCleared: clearedCollections,
+                    documentsDeleted: totalDocumentsDeleted,
+                    durationSeconds: duration,
+                },
+            };
+        } catch (error) {
+            console.error("❌ Error clearing all data:", error);
+            throw new Error(`Failed to clear all data: ${error.message}`);
+        }
+    }
+
+    /**
+     * Insert batch data into specified collection
+     */
+    static async insertBatchData(collection, totalCount, batchSize, clearExisting = false) {
+        await this.ensureConnection();
+
+        try {
+            console.log(`📦 Starting batch data insertion for ${collection}...`);
+            const startTime = Date.now();
 
             // Clear existing data if requested
             if (clearExisting) {
-                await SomeModel.deleteMany({});
+                if (collection === "someModel") {
+                    const deleteResult = await SomeModel.deleteMany({});
+                    console.log(`🗑️ Cleared ${deleteResult.deletedCount} existing documents from ${collection}`);
+                } else if (collection === "jobStatus") {
+                    const deleteResult = await JobStatus.deleteMany({});
+                    console.log(`🗑️ Cleared ${deleteResult.deletedCount} existing documents from ${collection}`);
+                }
             }
 
-            const startTime = Date.now();
             let totalInserted = 0;
+            const batches = Math.ceil(totalCount / batchSize);
 
-            // Insert data in batches for better performance
-            for (let i = 0; i < count; i += batchSize) {
-                const batchCount = Math.min(batchSize, count - i);
-                const batchData = this.generateSomeModelData(batchCount);
+            for (let batchIndex = 0; batchIndex < batches; batchIndex++) {
+                const currentBatchSize = Math.min(batchSize, totalCount - totalInserted);
+                let batchData;
 
-                const result = await SomeModel.insertMany(batchData, { ordered: false });
+                // Generate appropriate data based on collection type
+                if (collection === "someModel") {
+                    batchData = this.generateSomeModelData(currentBatchSize);
+                } else if (collection === "jobStatus") {
+                    batchData = this.generateJobStatusData(currentBatchSize);
+                } else {
+                    throw new Error(`Unsupported collection: ${collection}`);
+                }
+
+                // Insert batch data
+                let result;
+                if (collection === "someModel") {
+                    result = await SomeModel.insertMany(batchData, { ordered: false });
+                } else if (collection === "jobStatus") {
+                    result = await JobStatus.insertMany(batchData, { ordered: false });
+                }
+
                 totalInserted += result.length;
+                console.log(`📦 Batch ${batchIndex + 1}/${batches}: Inserted ${result.length} documents (Total: ${totalInserted})`);
+
+                // Add small delay between batches to prevent overwhelming the database
+                if (batchIndex < batches - 1) {
+                    await new Promise((resolve) => setTimeout(resolve, 50));
+                }
             }
 
             const endTime = Date.now();
             const duration = (endTime - startTime) / 1000;
 
-            console.log(`✅ Seeded ${totalInserted} documents in ${duration}s`);
+            console.log(`✅ Successfully inserted ${totalInserted} documents into ${collection} in ${duration}s`);
 
             return {
                 success: true,
-                message: `Successfully seeded ${totalInserted} documents`,
+                message: `Successfully inserted ${totalInserted} documents into ${collection}`,
                 stats: {
+                    collection,
                     documentsInserted: totalInserted,
+                    batchesProcessed: batches,
                     durationSeconds: duration,
                     documentsPerSecond: Math.round(totalInserted / duration),
-                    collection: "SomeModel",
                 },
             };
         } catch (error) {
-            console.error("Error seeding SomeModel:", error);
-            throw new Error(`Failed to seed SomeModel: ${error.message}`);
+            console.error(`❌ Error inserting batch data into ${collection}:`, error);
+            throw new Error(`Failed to insert batch data into ${collection}: ${error.message}`);
         }
     }
 
     /**
-     * Seed JobStatus collection with dummy data
+     * Fetch data from database and publish to RabbitMQ in batches
      */
-    static async seedJobStatus(count = 100, options = {}) {
+    static async fetchAndPublishBatches(collection, batchSize, limit = null, priority = 0, queueType = "processing", filter = {}) {
+        await this.ensureConnection();
+
         try {
-            // Ensure MongoDB connection is active
-            await this.ensureConnection();
+            console.log(`🚀 Starting fetch and publish for ${collection}...`);
+            const startTime = Date.now();
 
-            const { clearExisting = false, batchSize = 500 } = options;
-
-            if (clearExisting) {
-                await JobStatus.deleteMany({});
+            // Determine the model to query based on collection type
+            let Model;
+            if (collection === "someModel") {
+                Model = SomeModel;
+            } else if (collection === "jobStatus") {
+                Model = JobStatus;
+            } else {
+                throw new Error(`Unsupported collection: ${collection}`);
             }
 
-            const startTime = Date.now();
-            let totalInserted = 0;
+            // Get total document count with filter
+            const totalDocuments = await Model.countDocuments(filter);
+            console.log(`📊 Found ${totalDocuments} documents in ${collection} collection`);
 
-            for (let i = 0; i < count; i += batchSize) {
-                const batchCount = Math.min(batchSize, count - i);
-                const batchData = this.generateJobStatusData(batchCount);
+            if (totalDocuments === 0) {
+                return {
+                    success: true,
+                    message: `No documents found in ${collection} collection`,
+                    stats: {
+                        collection,
+                        documentsProcessed: 0,
+                        batchesPublished: 0,
+                        durationSeconds: 0,
+                    },
+                };
+            }
 
-                const result = await JobStatus.insertMany(batchData, { ordered: false });
-                totalInserted += result.length;
+            // Calculate actual limit
+            const actualLimit = limit ? Math.min(limit, totalDocuments) : totalDocuments;
+            const batchCount = Math.ceil(actualLimit / batchSize);
+
+            console.log(`📦 Will process ${actualLimit} documents in ${batchCount} batches of ${batchSize}`);
+
+            let documentsProcessed = 0;
+            let batchesPublished = 0;
+
+            // Process documents in batches
+            for (let skip = 0; skip < actualLimit; skip += batchSize) {
+                const currentBatchSize = Math.min(batchSize, actualLimit - skip);
+
+                // Fetch batch from database
+                const batch = await Model.find(filter).skip(skip).limit(currentBatchSize).lean();
+
+                if (batch.length === 0) break;
+
+                // Prepare message for RabbitMQ
+                const message = {
+                    batchId: `${collection}_batch_${batchesPublished + 1}`,
+                    collection,
+                    data: batch,
+                    metadata: {
+                        batchSize: batch.length,
+                        batchNumber: batchesPublished + 1,
+                        totalBatches: batchCount,
+                        timestamp: new Date().toISOString(),
+                    },
+                };
+
+                // Publish to appropriate queue
+                try {
+                    await QueueService.publishBatch(message, {
+                        priority,
+                        queueType,
+                        correlationId: message.batchId,
+                        metadata: message.metadata,
+                    });
+                    documentsProcessed += batch.length;
+                    batchesPublished++;
+
+                    console.log(`📨 Published batch ${batchesPublished}/${batchCount} (${batch.length} docs) to ${queueType} queue`);
+                } catch (publishError) {
+                    console.error(`❌ Failed to publish batch ${batchesPublished + 1}:`, publishError);
+                    throw new Error(`Failed to publish batch: ${publishError.message}`);
+                }
+
+                // Small delay between batches to prevent overwhelming the queue
+                if (skip + batchSize < actualLimit) {
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+                }
             }
 
             const endTime = Date.now();
             const duration = (endTime - startTime) / 1000;
 
+            console.log(`✅ Successfully published ${batchesPublished} batches (${documentsProcessed} documents) in ${duration}s`);
+
             return {
                 success: true,
-                message: `Successfully seeded ${totalInserted} job status documents`,
+                message: `Successfully published ${documentsProcessed} documents from ${collection} in ${batchesPublished} batches`,
                 stats: {
-                    documentsInserted: totalInserted,
+                    collection,
+                    documentsProcessed,
+                    batchesPublished,
                     durationSeconds: duration,
-                    documentsPerSecond: Math.round(totalInserted / duration),
-                    collection: "JobStatus",
+                    documentsPerSecond: Math.round(documentsProcessed / duration),
+                    queueType,
+                    priority,
                 },
             };
         } catch (error) {
-            console.error("Error seeding JobStatus:", error);
-            throw new Error(`Failed to seed JobStatus: ${error.message}`);
-        }
-    }
-
-    /**
-     * Seed all collections with dummy data
-     */
-    static async seedAll(options = {}) {
-        try {
-            const { someModelCount = 1000, jobStatusCount = 100, clearExisting = false, batchSize = 1000 } = options;
-
-            const startTime = Date.now();
-            const results = [];
-
-            // Seed SomeModel
-            const someModelResult = await this.seedSomeModel(someModelCount, { clearExisting, batchSize });
-            results.push(someModelResult);
-
-            // Seed JobStatus
-            const jobStatusResult = await this.seedJobStatus(jobStatusCount, { clearExisting, batchSize: 500 });
-            results.push(jobStatusResult);
-
-            // Initialize JobCounter if it doesn't exist
-            await JobCounter.findOneAndUpdate({ name: "migration" }, { $setOnInsert: { seq: 0 } }, { upsert: true });
-
-            const endTime = Date.now();
-            const totalDuration = (endTime - startTime) / 1000;
-
-            return {
-                success: true,
-                message: "All collections seeded successfully",
-                results: results,
-                summary: {
-                    totalDurationSeconds: totalDuration,
-                    totalDocuments: someModelCount + jobStatusCount,
-                    collections: ["SomeModel", "JobStatus", "JobCounter"],
-                },
-            };
-        } catch (error) {
-            console.error("Error in comprehensive seeding:", error);
-            throw new Error(`Failed to seed all collections: ${error.message}`);
-        }
-    }
-
-    /**
-     * Clear all test data
-     */
-    static async clearAllData() {
-        try {
-            // Ensure MongoDB connection is active
-            await this.ensureConnection();
-
-            console.log("Clearing all test data...");
-
-            const someModelResult = await SomeModel.deleteMany({});
-            const jobStatusResult = await JobStatus.deleteMany({});
-            // Note: Not clearing JobCounter as it might be needed for operations
-
-            return {
-                success: true,
-                message: "All test data cleared successfully",
-                cleared: {
-                    SomeModel: someModelResult.deletedCount,
-                    JobStatus: jobStatusResult.deletedCount,
-                },
-                timestamp: new Date().toISOString(),
-            };
-        } catch (error) {
-            console.error("Error clearing data:", error);
-            throw new Error(`Failed to clear data: ${error.message}`);
+            console.error(`❌ Error in fetch and publish for ${collection}:`, error);
+            throw new Error(`Failed to fetch and publish ${collection}: ${error.message}`);
         }
     }
 }

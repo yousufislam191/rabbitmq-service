@@ -1,13 +1,17 @@
 const express = require("express");
-const migrationRoutes = require("./routes/migrationRoutes");
 const queueRoutes = require("./routes/queueRoutes");
+const consumerRoutes = require("./routes/consumerRoutes");
 const seedRoutes = require("./routes/seedRoutes");
-const startConsumers = require("./consumers/QueueConsumerManager");
-const startScheduler = require("./schedulers/migrationScheduler");
+const consumerService = require("./services/consumerService");
 const config = require("./config");
 const db = require("./config/db");
+const ErrorHandler = require("./utils/errorHandler");
 
 const app = express();
+
+// Set up global error handlers for uncaught exceptions and unhandled rejections
+process.on("unhandledRejection", ErrorHandler.unhandledRejectionHandler);
+process.on("uncaughtException", ErrorHandler.uncaughtExceptionHandler);
 
 // JSON parsing middleware with better error handling
 app.use(
@@ -31,41 +35,46 @@ app.use((err, req, res, next) => {
 });
 
 // Routes
-app.use("/migrate", migrationRoutes);
 app.use("/queue", queueRoutes);
+app.use("/consumers", consumerRoutes);
 app.use("/seed", seedRoutes);
+
+// Global error handling middleware (must be last)
+app.use(ErrorHandler.expressErrorHandler);
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        timestamp: new Date().toISOString(),
+        error: {
+            message: `Route ${req.method} ${req.url} not found`,
+            type: "NotFound",
+        },
+    });
+});
 
 // Initialize application
 async function startApplication() {
-    try {
-        // Initialize database connection
-        await db.connect();
+    return await ErrorHandler.handleAsyncError(
+        async () => {
+            // Initialize database connection
+            await db.connect();
 
-        // Start consumers and scheduler
-        await startConsumers();
-        // startScheduler();
+            // Start consumers
+            await consumerService.startAllConsumers();
 
-        // Start the server
-        app.listen(config.PORT, () => {
-            console.log(`🌐 Server running on http://localhost:${config.PORT}`);
-        });
-    } catch (error) {
-        console.error("❌ Failed to start application:", error.message);
-        process.exit(1);
-    }
+            // Start the server
+            app.listen(config.PORT, () => {
+                console.log(`🌐 Server running on http://localhost:${config.PORT}`);
+            });
+        },
+        { service: "Application", operation: "startup" }
+    );
 }
 
-// Handle uncaught exceptions
-process.on("uncaughtException", (error) => {
-    console.error("🔧 The application will exit. Please check your code for unhandled errors. ERROR: ", error);
-    process.exit(1);
-});
-
-process.on("unhandledRejection", (reason, promise) => {
-    console.error("💥 Unhandled Rejection at:", promise, "reason:", reason);
-    console.error("🔧 The application will exit. Please ensure all promises are properly handled.");
-    process.exit(1);
-});
-
 // Start the application
-startApplication();
+startApplication().catch((error) => {
+    console.error("❌ Critical startup error:", error.message);
+    process.exit(1);
+});

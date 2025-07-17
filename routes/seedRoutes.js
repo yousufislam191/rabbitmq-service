@@ -2,14 +2,10 @@ const express = require("express");
 const router = express.Router();
 const seedController = require("../controllers/seedController");
 
-// Seed individual collections
-router.post("/some-model", seedController.seedSomeModel);
-router.post("/job-status", seedController.seedJobStatus);
-
-// Seed all collections
-router.post("/all", seedController.seedAll);
-
-// Clear data (with confirmation)
-router.delete("/clear", seedController.clearData);
+// Enhanced endpoints
+router.delete("/clear-all", seedController.clearAllData);
+router.post("/insert-batch", seedController.insertBatchData);
+router.post("/fetch-and-publish", seedController.fetchAndPublishBatches);
+router.post("/test-archive-flow", seedController.testArchiveFlow);
 
 module.exports = router;

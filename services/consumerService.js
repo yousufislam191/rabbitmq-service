@@ -1,9 +1,10 @@
-const RabbitMQService = require("./rabbitmqService");
 const queueService = require("./queueService");
 const JobStatus = require("../models/jobStatus");
 const { Worker } = require("worker_threads");
 const path = require("path");
-const config = require("../config");
+const { ValidationError } = require("../utils/errors");
+const { QueueManager, QUEUE_CONFIG } = require("../config/queues");
+const ConsumerWorkerManager = require("./ConsumerWorkerManager");
 
 class ConsumerService {
     constructor() {
@@ -13,6 +14,9 @@ class ConsumerService {
         this.isStarted = false;
         this.workerCounter = 0; // Track total workers created
         this.activeWorkers = 0; // Track currently active workers
+
+        // Consumer Worker Manager for running consumers in worker threads
+        this.consumerWorkerManager = new ConsumerWorkerManager();
     }
 
     async initialize() {
@@ -23,10 +27,12 @@ class ConsumerService {
             // Reuse the queue service's RabbitMQ connection instead of creating our own
             this.rabbitmq = queueService.rabbitmq;
 
+            // Initialize consumer worker manager for worker thread consumers
+            await this.consumerWorkerManager.initialize();
+            console.log("✅ Consumer service initialized with worker thread consumers");
+
             // Setup event listeners
             this.setupEventListeners();
-
-            console.log("✅ Consumer service initialized using shared connection");
         } catch (error) {
             console.error("❌ Failed to initialize consumer service:", error.message);
             throw error;
@@ -52,7 +58,7 @@ class ConsumerService {
         });
     }
 
-    async processInWorker(batch, correlationId) {
+    async processInWorker(batch, correlationId, queueName = "unknown") {
         return new Promise((resolve, reject) => {
             // Increment worker counter
             this.workerCounter++;
@@ -72,8 +78,14 @@ class ConsumerService {
                 },
             });
 
-            // Store worker reference with cleanup flag
-            this.workers.set(correlationId, { worker, cleaned: false });
+            // Store worker reference with cleanup flag and queue name
+            this.workers.set(correlationId, {
+                worker,
+                cleaned: false,
+                queueName: queueName,
+                workerId: workerId,
+                startTime: new Date(),
+            });
 
             const cleanupWorker = () => {
                 const workerInfo = this.workers.get(correlationId);
@@ -114,15 +126,7 @@ class ConsumerService {
                             { new: true }
                         );
 
-                        // Check if this batch belongs to a migration and update migration status
-                        if (updatedJob && updatedJob.parentJobId) {
-                            try {
-                                const migrationService = require("./migrationService");
-                                await migrationService.checkAndUpdateMigrationStatus(updatedJob.parentJobId);
-                            } catch (migrationError) {
-                                console.warn(`⚠️  Failed to update migration status for ${updatedJob.parentJobId}:`, migrationError.message);
-                            }
-                        }
+                        // Note: Migration status update removed as migration functionality is no longer needed
                     } catch (error) {
                         console.warn(`⚠️  Failed to update job status for ${correlationId} but continuing:`, error.message);
                     }
@@ -174,103 +178,6 @@ class ConsumerService {
         });
     }
 
-    async startProcessingConsumer() {
-        try {
-            const consumerInfo = await this.rabbitmq.consume(
-                "app.processing.queue",
-                async (batch, rawMsg) => {
-                    const correlationId = rawMsg.properties.correlationId;
-                    const batchSize = rawMsg.properties.headers?.batchSize || batch.length;
-
-                    // Update job status to processing
-                    try {
-                        await JobStatus.findOneAndUpdate(
-                            { correlationId },
-                            {
-                                status: "processing",
-                                startTime: new Date(),
-                                message: `Processing ${batchSize} items`,
-                            }
-                        );
-                    } catch (error) {
-                        console.error(`❌ Failed to update job status for ${correlationId}:`, error.message);
-                    }
-
-                    await this.processInWorker(batch, correlationId);
-                },
-                {
-                    prefetch: 1,
-                    retry: true,
-                    maxRetries: 3,
-                    retryDelayMs: 10000,
-                    deadLetterExchange: "app.deadletter.exchange",
-                }
-            );
-
-            this.consumers.set("processing", consumerInfo);
-        } catch (error) {
-            console.error("❌ Failed to start processing consumer:", error.message);
-            throw error;
-        }
-    }
-
-    async startPriorityConsumer() {
-        try {
-            const consumerInfo = await this.rabbitmq.consume(
-                "app.priority.queue",
-                async (batch, rawMsg) => {
-                    const correlationId = rawMsg.properties.correlationId;
-                    const priority = rawMsg.properties.priority || 0;
-
-                    console.log(`⚡ Processing priority batch: ${correlationId} (priority: ${priority})`);
-
-                    await this.processInWorker(batch, correlationId);
-                },
-                {
-                    prefetch: 2, // Higher prefetch for priority queue
-                    retry: true,
-                    maxRetries: 5, // More retries for priority messages
-                    retryDelayMs: 5000, // Faster retry for priority
-                    deadLetterExchange: "app.deadletter.exchange",
-                }
-            );
-
-            this.consumers.set("priority", consumerInfo);
-        } catch (error) {
-            console.error("❌ Failed to start priority consumer:", error.message);
-            throw error;
-        }
-    }
-
-    async startDeadLetterConsumer() {
-        try {
-            const consumerInfo = await this.rabbitmq.consume(
-                "app.deadletter.queue",
-                async (message, rawMsg) => {
-                    const correlationId = rawMsg.properties.correlationId;
-                    const deathReason = rawMsg.properties.headers?.["x-death-reason"];
-
-                    console.log(`💀 Dead letter message received: ${correlationId}`);
-                    console.log(`   Reason: ${deathReason}`);
-
-                    // Log to monitoring system, send alerts, etc.
-                    // For now, just acknowledge the message
-                    console.log(`📝 Dead letter message logged: ${correlationId}`);
-                },
-                {
-                    prefetch: 10,
-                    retry: false, // Don't retry dead letter messages
-                    noAck: false,
-                }
-            );
-
-            this.consumers.set("deadletter", consumerInfo);
-        } catch (error) {
-            console.error("❌ Failed to start dead letter consumer:", error.message);
-            throw error;
-        }
-    }
-
     async startAllConsumers() {
         if (this.isStarted) {
             console.log("⚠️ Consumers already started");
@@ -280,8 +187,9 @@ class ConsumerService {
         try {
             await this.initialize();
 
-            // Start all consumers
-            await Promise.all([this.startProcessingConsumer(), this.startPriorityConsumer(), this.startDeadLetterConsumer()]);
+            // Start consumers in worker threads
+            await this.consumerWorkerManager.startAllConsumerWorkers();
+            console.log("✅ All consumer workers started successfully in worker threads");
 
             this.isStarted = true;
         } catch (error) {
@@ -306,12 +214,16 @@ class ConsumerService {
 
     async stopAllConsumers() {
         try {
-            // Terminate all active workers
+            // Terminate all active processing workers
             for (const [correlationId, workerInfo] of this.workers) {
-                console.log(`🛑 Terminating worker: ${correlationId}`);
+                console.log(`🛑 Terminating processing worker: ${correlationId}`);
                 await workerInfo.worker.terminate();
             }
             this.workers.clear();
+
+            // Stop all consumer workers
+            await this.consumerWorkerManager.stopAllConsumerWorkers();
+            console.log("🛑 All consumer workers stopped");
 
             // Close RabbitMQ connection
             if (this.rabbitmq) {
@@ -320,42 +232,123 @@ class ConsumerService {
 
             this.consumers.clear();
             this.isStarted = false;
-
-            console.log("🛑 All consumers stopped");
         } catch (error) {
             console.error("❌ Error stopping consumers:", error.message);
             throw error;
         }
     }
 
-    getConsumerStatus() {
+    /**
+     * Start a specific consumer worker
+     */
+    async startConsumer(queueName) {
+        // Determine consumer type based on queue name
+        let consumerType;
+        if (queueName === QUEUE_CONFIG.PROCESSING.name) {
+            consumerType = "ProcessingConsumer";
+        } else if (queueName === QUEUE_CONFIG.PRIORITY.name) {
+            consumerType = "PriorityConsumer";
+        } else if (queueName === QUEUE_CONFIG.DEAD_LETTER.name) {
+            consumerType = "DeadLetterConsumer";
+        } else if (queueName === QUEUE_CONFIG.ARCHIVE.name) {
+            consumerType = "ArchiveConsumer";
+        } else {
+            throw new ValidationError(`Unknown queue name: ${queueName}`);
+        }
+
+        const workerInfo = await this.consumerWorkerManager.startConsumerWorker(consumerType, queueName);
         return {
-            isStarted: this.isStarted,
-            consumers: Array.from(this.consumers.keys()),
-            activeWorkers: this.workers.size,
-            workerIds: Array.from(this.workers.keys()),
-            connection: this.rabbitmq ? this.rabbitmq.getConnectionStatus() : null,
+            success: true,
+            message: `Consumer worker started for ${queueName}`,
+            workerId: workerInfo.workerId,
+            consumerType,
         };
     }
 
-    async getConsumerHealth() {
-        try {
-            const status = this.getConsumerStatus();
-            const rabbitmqHealth = this.rabbitmq ? await this.rabbitmq.healthCheck() : null;
+    /**
+     * Stop a specific consumer worker
+     */
+    async stopConsumer(queueName) {
+        await this.consumerWorkerManager.stopConsumerWorker(queueName);
+        return {
+            success: true,
+            message: `Consumer worker stopped for ${queueName}`,
+        };
+    }
+
+    /**
+     * Restart a specific consumer worker
+     */
+    async restartConsumer(queueName) {
+        await this.consumerWorkerManager.restartConsumerWorker(queueName);
+        return {
+            success: true,
+            message: `Consumer worker restarted for ${queueName}`,
+        };
+    }
+
+    /**
+     * Get consumer status including worker thread information
+     */
+    getConsumerStatus(queueName = null) {
+        const workerStats = this.consumerWorkerManager.getConsumerWorkerStats();
+
+        if (queueName) {
+            // Return status for specific consumer worker
+            const specificWorker = workerStats.workers.find((worker) => worker.queueName === queueName);
+
+            if (!specificWorker) {
+                throw new ValidationError(`No consumer worker found for queue: ${queueName}`);
+            }
 
             return {
-                status: this.isStarted && rabbitmqHealth?.status === "healthy" ? "healthy" : "unhealthy",
-                timestamp: new Date(),
-                consumers: status,
-                rabbitmq: rabbitmqHealth,
-            };
-        } catch (error) {
-            return {
-                status: "unhealthy",
-                error: error.message,
-                timestamp: new Date(),
+                queueName,
+                worker: specificWorker,
+                processingWorkers: {
+                    totalCreated: this.workerCounter,
+                    currentlyActive: this.activeWorkers,
+                    activeWorkers: Array.from(this.workers.entries())
+                        .filter(([_, info]) => info.queueName === queueName)
+                        .map(([correlationId, info]) => ({
+                            correlationId,
+                            workerId: info.workerId,
+                            startTime: info.startTime,
+                            uptime: Date.now() - info.startTime.getTime(),
+                        })),
+                },
             };
         }
+
+        return {
+            mode: "worker-threads",
+            isStarted: this.isStarted,
+            consumerWorkers: workerStats,
+            processingWorkers: {
+                totalCreated: this.workerCounter,
+                currentlyActive: this.activeWorkers,
+                activeWorkers: Array.from(this.workers.keys()),
+            },
+        };
+    }
+
+    /**
+     * Get consumer health including worker thread health
+     */
+    async getConsumerHealth() {
+        const workerHealth = this.consumerWorkerManager.getHealthStatus();
+
+        return {
+            status: workerHealth.status,
+            timestamp: new Date().toISOString(),
+            consumerWorkers: workerHealth,
+            processingWorkers: {
+                totalCreated: this.workerCounter,
+                currentlyActive: this.activeWorkers,
+            },
+            rabbitMQ: {
+                connected: !!this.rabbitmq?.isConnected,
+            },
+        };
     }
 
     getWorkerStatistics() {
@@ -402,6 +395,56 @@ class ConsumerService {
             currentActiveWorkers: this.activeWorkers,
             actualActiveWorkers,
             timestamp: new Date(),
+        };
+    }
+
+    /**
+     * Get detailed worker statistics
+     */
+    getDetailedWorkerStats() {
+        const stats = {
+            consumerMode: "worker-threads",
+            isStarted: this.isStarted,
+            processingWorkers: {
+                totalCreated: this.workerCounter,
+                currentlyActive: this.activeWorkers,
+                activeWorkers: Array.from(this.workers.entries()).map(([correlationId, info]) => ({
+                    correlationId,
+                    workerId: info.workerId,
+                    queueName: info.queueName,
+                    startTime: info.startTime,
+                    uptime: Date.now() - info.startTime.getTime(),
+                })),
+            },
+            consumerWorkers: this.consumerWorkerManager.getConsumerWorkerStats(),
+        };
+
+        return stats;
+    }
+
+    /**
+     * Get available queues from configuration
+     */
+    getAvailableQueues() {
+        return {
+            queues: [
+                {
+                    name: QUEUE_CONFIG.PROCESSING.name,
+                    type: "processing",
+                    description: "Main processing queue",
+                },
+                {
+                    name: QUEUE_CONFIG.PRIORITY.name,
+                    type: "priority",
+                    description: "High priority processing queue",
+                },
+                {
+                    name: QUEUE_CONFIG.DEAD_LETTER.name,
+                    type: "dead-letter",
+                    description: "Dead letter queue for failed messages",
+                },
+            ],
+            total: 3,
         };
     }
 }

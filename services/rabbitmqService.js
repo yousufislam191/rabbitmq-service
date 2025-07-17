@@ -1,5 +1,7 @@
 const amqplib = require("amqplib");
 const { EventEmitter } = require("events");
+const { v4: uuidv4 } = require("uuid");
+const { QueueManager } = require("../config/queues");
 
 class RabbitMQService extends EventEmitter {
     constructor(amqpUrl = "amqp://localhost") {
@@ -7,6 +9,7 @@ class RabbitMQService extends EventEmitter {
         this.amqpUrl = amqpUrl;
         this.connection = null;
         this.channel = null;
+        this.checkConnection = null; // Separate connection for queue checking
         this.isConnected = false;
         this.consumers = new Map();
         this.reconnectAttempts = 0;
@@ -25,6 +28,9 @@ class RabbitMQService extends EventEmitter {
             this.connection.on("close", this.handleConnectionClose.bind(this));
             this.channel.on("error", this.handleChannelError.bind(this));
 
+            // Create a separate connection for queue checking operations
+            await this.createCheckConnection();
+
             console.log("✅ RabbitMQ connected successfully");
             this.emit("connected");
         } catch (error) {
@@ -32,6 +38,36 @@ class RabbitMQService extends EventEmitter {
             this.isConnected = false;
             this.emit("error", error);
             throw error;
+        }
+    }
+
+    async createCheckConnection() {
+        try {
+            if (this.checkConnection) {
+                try {
+                    await this.checkConnection.close();
+                } catch (e) {
+                    // Ignore errors when closing
+                }
+            }
+
+            this.checkConnection = await amqplib.connect(this.amqpUrl);
+
+            // Add minimal error handling for check connection - don't propagate errors
+            this.checkConnection.on("error", (error) => {
+                console.warn("⚠️ Check connection error (isolated):", error.message);
+                // Don't propagate this error to avoid affecting main connection
+            });
+
+            this.checkConnection.on("close", () => {
+                console.warn("⚠️ Check connection closed (will recreate if needed)");
+                this.checkConnection = null;
+            });
+
+            console.log("✅ RabbitMQ check connection created");
+        } catch (error) {
+            console.warn("⚠️ Failed to create check connection:", error.message);
+            this.checkConnection = null;
         }
     }
 
@@ -130,7 +166,18 @@ class RabbitMQService extends EventEmitter {
                 throw new Error("RabbitMQ not connected");
             }
 
-            const { persistent = true, correlationId, replyTo, headers = {}, expiration, priority, messageId } = options;
+            const { persistent = true, replyTo, headers = {}, expiration, priority } = options;
+
+            // Generate correlationId if not provided or empty
+            let { correlationId, messageId } = options;
+            if (!correlationId || correlationId.trim() === "") {
+                correlationId = uuidv4();
+            }
+
+            // Generate messageId if not provided or empty
+            if (!messageId || messageId.trim() === "") {
+                messageId = uuidv4();
+            }
 
             const buffer = Buffer.from(JSON.stringify(message));
 
@@ -153,7 +200,7 @@ class RabbitMQService extends EventEmitter {
                 console.warn("⚠️ Message may not have been published (channel buffer full)");
             }
 
-            this.emit("messagePublished", { exchange, routingKey, correlationId });
+            this.emit("messagePublished", { exchange, routingKey, correlationId, messageId });
 
             return result;
         } catch (error) {
@@ -313,12 +360,46 @@ class RabbitMQService extends EventEmitter {
 
     async getQueueInfo(queue) {
         try {
-            const info = await this.channel.checkQueue(queue);
-            return {
-                queue: info.queue,
-                messageCount: info.messageCount,
-                consumerCount: info.consumerCount,
-            };
+            // Ensure we have a valid check connection
+            if (!this.checkConnection || this.checkConnection.closed) {
+                await this.createCheckConnection();
+            }
+
+            if (!this.checkConnection) {
+                throw new Error("Unable to create check connection");
+            }
+
+            // Create a temporary channel on the separate check connection
+            let tempChannel = null;
+            try {
+                tempChannel = await this.checkConnection.createChannel();
+
+                const info = await tempChannel.checkQueue(queue);
+
+                // Close the temporary channel properly
+                await tempChannel.close();
+
+                return {
+                    queue: info.queue,
+                    messageCount: info.messageCount,
+                    consumerCount: info.consumerCount,
+                };
+            } catch (checkError) {
+                // Close the temp channel if it's still open (suppress any errors)
+                if (tempChannel && !tempChannel.closed) {
+                    try {
+                        await tempChannel.close();
+                    } catch (closeError) {
+                        // Channel might already be closed, ignore
+                    }
+                }
+
+                // Check if it's a queue not found error
+                if (checkError.message.includes("NOT_FOUND") || checkError.message.includes("no queue")) {
+                    throw new Error(`Queue '${queue}' does not exist`);
+                }
+                throw checkError;
+            }
         } catch (error) {
             console.error(`❌ Failed to get queue info for '${queue}':`, error.message);
             throw error;
@@ -327,24 +408,47 @@ class RabbitMQService extends EventEmitter {
 
     async getAllQueues() {
         try {
-            if (!this.channel) {
-                throw new Error("Channel not available");
+            // Ensure we have a valid check connection
+            if (!this.checkConnection || this.checkConnection.closed) {
+                await this.createCheckConnection();
             }
 
-            // Since amqplib doesn't provide a direct way to list all queues,
-            // we'll use a practical approach: try to check known queue patterns
-            // and return only the ones that exist
-            const knownQueues = ["app.processing.queue", "app.priority.queue", "app.deadletter.queue", "app.retry.queue"];
+            if (!this.checkConnection) {
+                throw new Error("Unable to create check connection");
+            }
 
+            // Get all configured queue names from the centralized configuration
+            const configuredQueues = QueueManager.getAllQueueNames();
             const existingQueues = [];
 
-            for (const queue of knownQueues) {
+            for (const queue of configuredQueues) {
+                // Create a temporary channel on the separate check connection
+                let tempChannel = null;
                 try {
-                    await this.channel.checkQueue(queue);
+                    tempChannel = await this.checkConnection.createChannel();
+
+                    await tempChannel.checkQueue(queue);
+
+                    // Close the temporary channel properly
+                    await tempChannel.close();
+
                     existingQueues.push(queue);
                 } catch (error) {
-                    // Queue doesn't exist, skip it
-                    console.warn(`Queue ${queue} not found, skipping`);
+                    // Close the temp channel if it's still open (suppress any errors)
+                    if (tempChannel && !tempChannel.closed) {
+                        try {
+                            await tempChannel.close();
+                        } catch (closeError) {
+                            // Channel might already be closed, ignore
+                        }
+                    }
+
+                    // Only log non-existence errors as warnings, not errors
+                    if (error.message.includes("NOT_FOUND") || error.message.includes("no queue")) {
+                        console.warn(`Queue ${queue} not found, skipping`);
+                    } else {
+                        console.error(`Error checking queue ${queue}:`, error.message);
+                    }
                 }
             }
 
@@ -366,13 +470,42 @@ class RabbitMQService extends EventEmitter {
         };
     }
 
+    getConnectionDetails() {
+        return {
+            isConnected: this.isConnected,
+            connectionState: this.connection
+                ? {
+                      closing: this.connection.closing,
+                      closed: this.connection.closed,
+                      serverProperties: this.connection.serverProperties ? "available" : "none",
+                  }
+                : "no connection",
+            channelState: this.channel
+                ? {
+                      closed: this.channel.closed,
+                      channelNumber: this.channel.ch,
+                  }
+                : "no channel",
+            checkConnectionState: this.checkConnection
+                ? {
+                      closing: this.checkConnection.closing,
+                      closed: this.checkConnection.closed,
+                  }
+                : "no check connection",
+            reconnectAttempts: this.reconnectAttempts,
+            consumers: this.consumers.size,
+        };
+    }
+
     async healthCheck() {
         try {
-            if (!this.isConnected || !this.channel) {
+            if (!this.isConnected) {
                 return { status: "unhealthy", error: "Not connected" };
             }
 
-            // Test channel by checking a known queue or exchange
+            await this.ensureChannel();
+
+            // Test channel by checking a known exchange
             await this.channel.checkExchange("amq.direct");
 
             return {
@@ -391,8 +524,9 @@ class RabbitMQService extends EventEmitter {
 
     async close() {
         try {
-            console.log("🔌 Closing RabbitMQ connection...");
+            console.log("🔌 Closing RabbitMQ connections...");
 
+            // Close main channel and connection
             if (this.channel) {
                 await this.channel.close();
             }
@@ -401,13 +535,51 @@ class RabbitMQService extends EventEmitter {
                 await this.connection.close();
             }
 
+            // Close check connection
+            if (this.checkConnection) {
+                try {
+                    await this.checkConnection.close();
+                } catch (error) {
+                    console.warn("⚠️ Error closing check connection:", error.message);
+                }
+                this.checkConnection = null;
+            }
+
             this.isConnected = false;
             this.consumers.clear();
 
-            console.log("✅ RabbitMQ connection closed gracefully");
+            console.log("✅ RabbitMQ connections closed gracefully");
             this.emit("closed");
         } catch (error) {
-            console.error("❌ Error closing RabbitMQ connection:", error.message);
+            console.error("❌ Error closing RabbitMQ connections:", error.message);
+            throw error;
+        }
+    }
+
+    async ensureChannel() {
+        try {
+            // First check if connection is still valid
+            if (!this.connection || this.connection.closing || this.connection.closed) {
+                console.log("🔄 Connection not available, reconnecting...");
+                this.isConnected = false;
+                await this.connect();
+                return;
+            }
+
+            // If connection is valid but we're marked as disconnected, update status
+            if (!this.isConnected) {
+                this.isConnected = true;
+            }
+
+            // Check if we need to recreate the channel
+            if (!this.channel || this.channel.closed) {
+                console.log("🔄 Channel closed, recreating...");
+                this.channel = await this.connection.createChannel();
+                this.channel.on("error", this.handleChannelError.bind(this));
+                console.log("✅ Channel recreated successfully");
+            }
+        } catch (error) {
+            console.error("❌ Failed to ensure channel:", error.message);
             throw error;
         }
     }

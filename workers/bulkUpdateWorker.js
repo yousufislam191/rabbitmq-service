@@ -41,13 +41,20 @@ async function bulkUpdate(batch, correlationId, workerId, workerNumber) {
 
         const result = await SomeModel.bulkWrite(bulkOps);
 
-        console.log(`✅ ${workerId} (#${workerNumber}) processed ${batch.length} items`);
+        const parentWorkerId = workerData.parentWorkerId || "main";
+        const isPriority = workerData.isPriority || false;
+        const priority = workerData.priority || 0;
+
+        console.log(`✅ ${workerId} (#${workerNumber}) ${isPriority ? "[PRIORITY]" : ""} processed ${batch.length} items for parent: ${parentWorkerId}`);
 
         parentPort.postMessage({
             success: true,
             processed: batch.length,
             modifiedCount: result.modifiedCount,
             matchedCount: result.matchedCount,
+            parentWorkerId,
+            isPriority,
+            priority,
             workerId: workerId,
             workerNumber: workerNumber,
         });
